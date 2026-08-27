@@ -1,0 +1,10 @@
+{
+  "name": "세글자쿵!",
+  "short_name": "세글자쿵",
+  "description": "다 같이 바로 즐기는 오리지널 실시간 한글 리듬 게임",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#17141f",
+  "theme_color": "#17141f",
+  "icons": [{"src":"/logo.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

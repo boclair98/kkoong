@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="30" fill="#17141f"/>
+  <path d="M22 47c0-14 11-25 25-25h34c14 0 25 11 25 25v34c0 14-11 25-25 25H47c-14 0-25-11-25-25z" fill="#ff5f45"/>
+  <circle cx="92" cy="35" r="18" fill="#f4ff72"/>
+  <text x="64" y="83" text-anchor="middle" font-size="48" font-weight="900" font-family="Arial,sans-serif" fill="#fff">쿵</text>
+</svg>
