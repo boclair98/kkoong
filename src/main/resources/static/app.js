@@ -37,8 +37,13 @@
       app.socket = socket;
       const timeout = setTimeout(() => reject(new Error('connection timeout')), 9000);
       socket.onopen = () => {
-        clearTimeout(timeout); app.connecting = null; app.reconnectAttempt = 0; setConnection(true, '연결됨'); resolve(socket);
-        if (app.desiredRoom) send({type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId});
+        clearTimeout(timeout); app.connecting = null; app.reconnectAttempt = 0; setConnection(true, '연결됨');
+        // Rejoin synchronously before releasing queued actions. Otherwise a word
+        // submitted during a reconnect can reach the server before room recovery.
+        if (app.desiredRoom) socket.send(JSON.stringify({
+          type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId
+        }));
+        resolve(socket);
       };
       socket.onmessage = event => handleMessage(JSON.parse(event.data));
       socket.onerror = () => { clearTimeout(timeout); app.connecting = null; reject(new Error('socket error')); };
