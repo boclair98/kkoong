@@ -1,6 +1,9 @@
 package kr.coders.threeletterboom;
 
+import kr.coders.threeletterboom.game.GameMode;
+import kr.coders.threeletterboom.game.WordDictionary;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import tools.jackson.databind.JsonNode;
@@ -13,6 +16,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.HashSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,10 +27,13 @@ class GameWebSocketIntegrationTests {
     @LocalServerPort
     int port;
 
+    @Autowired
+    WordDictionary dictionary;
+
     private final JsonMapper json = JsonMapper.builder().build();
 
     @Test
-    void createsRoomStartsWithBotRejectsWrongLengthAndLetsBotRhythmPass() throws Exception {
+    void createsRoomRejectsInventedWordAndAcceptsDictionaryNoun() throws Exception {
         MessageListener listener = new MessageListener();
         WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
                 .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), listener).get(5, TimeUnit.SECONDS);
@@ -49,12 +56,16 @@ class GameWebSocketIntegrationTests {
             JsonNode error = listener.await("error", json);
             assertEquals("WRONG_LENGTH", error.get("code").asText());
 
-            socket.sendText("{\"type\":\"word\",\"word\":\"" + first + "가거\"}", true).join();
-            JsonNode rhythmPass = listener.awaitStateEvent("리듬 패스", json);
-            JsonNode bot = rhythmPass.get("players").get(1);
-            assertTrue(bot.get("bot").asBoolean());
-            assertEquals(2, bot.get("lives").asInt());
-            assertEquals(joined.get("playerId").asText(), rhythmPass.get("turnPlayerId").asText());
+            socket.sendText("{\"type\":\"word\",\"word\":\"" + first + "뷁쀍\"}", true).join();
+            JsonNode invented = listener.await("error", json);
+            assertEquals("NOT_IN_DICTIONARY", invented.get("code").asText());
+
+            String known = dictionary.pick(first, GameMode.CLASSIC, new HashSet<>());
+            assertNotNull(known);
+            socket.sendText("{\"type\":\"word\",\"word\":\"" + known + "\"}", true).join();
+            JsonNode accepted = listener.awaitStateEvent("사전 인증", json);
+            assertEquals(known, accepted.get("history").get(0).get("word").asText());
+            assertEquals(joined.get("playerId").asText(), accepted.get("history").get(0).get("playerId").asText());
         }
         socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
     }

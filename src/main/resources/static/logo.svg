@@ -1,6 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="30" fill="#17141f"/>
-  <path d="M22 47c0-14 11-25 25-25h34c14 0 25 11 25 25v34c0 14-11 25-25 25H47c-14 0-25-11-25-25z" fill="#ff5f45"/>
-  <circle cx="92" cy="35" r="18" fill="#f4ff72"/>
-  <text x="64" y="83" text-anchor="middle" font-size="48" font-weight="900" font-family="Arial,sans-serif" fill="#fff">쿵</text>
+  <defs>
+    <radialGradient id="space" cx="38%" cy="30%">
+      <stop offset="0" stop-color="#243b5d"/>
+      <stop offset=".58" stop-color="#08101c"/>
+      <stop offset="1" stop-color="#02050a"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="#050810"/>
+  <circle cx="64" cy="64" r="34" fill="url(#space)" stroke="#73e7ff" stroke-opacity=".72"/>
+  <ellipse cx="64" cy="64" rx="52" ry="20" fill="none" stroke="#73e7ff" stroke-opacity=".48" transform="rotate(-18 64 64)"/>
+  <ellipse cx="64" cy="64" rx="47" ry="16" fill="none" stroke="#9d7cff" stroke-opacity=".44" transform="rotate(56 64 64)"/>
+  <circle cx="103" cy="48" r="4" fill="#ff693d"/>
+  <text x="64" y="77" text-anchor="middle" font-size="34" font-weight="700" font-family="Arial,sans-serif" fill="#f5f7fb">쿵</text>
 </svg>

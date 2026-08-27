@@ -1,10 +1,10 @@
 {
-  "name": "세글자쿵!",
-  "short_name": "세글자쿵",
-  "description": "다 같이 바로 즐기는 오리지널 실시간 한글 리듬 게임",
+  "name": "KUNG ORBIT — 세글자쿵",
+  "short_name": "KUNG ORBIT",
+  "description": "검증된 한국어 명사로 겨루는 실시간 우주 끝말잇기",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#17141f",
-  "theme_color": "#17141f",
+  "background_color": "#050810",
+  "theme_color": "#050810",
   "icons": [{"src":"/logo.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
 }

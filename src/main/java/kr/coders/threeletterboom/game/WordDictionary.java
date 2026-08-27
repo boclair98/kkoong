@@ -20,20 +20,31 @@ import java.util.Set;
 public class WordDictionary {
     private final Set<String> words = new HashSet<>();
     private final Map<String, List<String>> byFirst = new HashMap<>();
+    private final Map<String, List<String>> friendlyByFirst = new HashMap<>();
     private final Random random = new Random();
 
     public WordDictionary() {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                new ClassPathResource("words-ko.txt").getInputStream(), StandardCharsets.UTF_8))) {
-            reader.lines().map(String::trim).filter(line -> !line.isBlank() && !line.startsWith("#"))
-                    .map(WordDictionary::normalize).forEach(word -> {
-                        words.add(word);
-                        byFirst.computeIfAbsent(firstSyllable(word), ignored -> new ArrayList<>()).add(word);
-                    });
-        } catch (Exception exception) {
-            throw new IllegalStateException("내장 단어 사전을 읽지 못했습니다", exception);
-        }
+        readWords("words-ko.txt", word -> {
+            words.add(word);
+            byFirst.computeIfAbsent(firstSyllable(word), ignored -> new ArrayList<>()).add(word);
+        });
+        readWords("bot-words-ko.txt", word -> {
+            if (words.contains(word)) {
+                friendlyByFirst.computeIfAbsent(firstSyllable(word), ignored -> new ArrayList<>()).add(word);
+            }
+        });
         byFirst.values().forEach(Collections::shuffle);
+        friendlyByFirst.values().forEach(Collections::shuffle);
+    }
+
+    private void readWords(String resource, java.util.function.Consumer<String> consumer) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new ClassPathResource(resource).getInputStream(), StandardCharsets.UTF_8))) {
+            reader.lines().map(String::trim).filter(line -> !line.isBlank() && !line.startsWith("#"))
+                    .map(WordDictionary::normalize).filter(WordDictionary::isHangulWord).forEach(consumer);
+        } catch (Exception exception) {
+            throw new IllegalStateException("내장 단어 사전을 읽지 못했습니다: " + resource, exception);
+        }
     }
 
     public boolean isKnown(String word) {
@@ -41,15 +52,21 @@ public class WordDictionary {
     }
 
     public String pick(String first, GameMode mode, Set<String> used) {
-        List<String> candidates = byFirst.getOrDefault(first, List.of()).stream()
+        List<String> friendly = playable(friendlyByFirst.getOrDefault(first, List.of()), mode, used);
+        if (!friendly.isEmpty()) return friendly.get(random.nextInt(friendly.size()));
+        List<String> candidates = playable(byFirst.getOrDefault(first, List.of()), mode, used);
+        if (candidates.isEmpty()) return null;
+        return candidates.get(random.nextInt(candidates.size()));
+    }
+
+    private List<String> playable(List<String> source, GameMode mode, Set<String> used) {
+        return source.stream()
                 .filter(word -> word.length() >= mode.minLength() && word.length() <= mode.maxLength())
                 .filter(word -> !used.contains(word))
                 .filter(word -> byFirst.getOrDefault(lastSyllable(word), List.of()).stream()
                         .anyMatch(next -> next.length() >= mode.minLength() && next.length() <= mode.maxLength()
                                 && !used.contains(next) && !next.equals(word)))
                 .toList();
-        if (candidates.isEmpty()) return null;
-        return candidates.get(random.nextInt(candidates.size()));
     }
 
     public String pickStarter(GameMode mode) {
@@ -62,6 +79,8 @@ public class WordDictionary {
     }
 
     public int size() { return words.size(); }
+
+    public int friendlySize() { return friendlyByFirst.values().stream().mapToInt(List::size).sum(); }
 
     public static String normalize(String value) {
         if (value == null) return "";

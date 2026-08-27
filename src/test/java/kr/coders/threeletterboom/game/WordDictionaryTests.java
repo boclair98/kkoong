@@ -6,16 +6,21 @@ import java.util.HashSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WordDictionaryTests {
     private final WordDictionary dictionary = new WordDictionary();
 
     @Test
-    void loadsCuratedFamilyFriendlyWords() {
-        assertTrue(dictionary.size() >= 250);
+    void loadsStrictNationalDictionaryNouns() {
+        assertTrue(dictionary.size() >= 30_000);
+        assertTrue(dictionary.friendlySize() >= 250);
         assertTrue(dictionary.isKnown("고구마"));
         assertTrue(dictionary.isKnown("사과나무"));
+        assertTrue(dictionary.isKnown("우주선"));
+        assertFalse(dictionary.isKnown("가가거"));
+        assertFalse(dictionary.isKnown("가뷁쀍"));
     }
 
     @Test

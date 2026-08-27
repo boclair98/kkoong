@@ -3,9 +3,9 @@ package kr.coders.threeletterboom.game;
 import java.util.Locale;
 
 public enum GameMode {
-    CLASSIC("classic", "정통 세글자", 3, 3, 12, 2),
-    SPEED("speed", "번개 세글자", 3, 3, 7, 2),
-    RELAY("relay", "자유 릴레이", 2, 4, 10, 2);
+    CLASSIC("classic", "기본 궤도", 3, 3, 12, 2),
+    SPEED("speed", "펄스 항로", 3, 3, 7, 2),
+    RELAY("relay", "자유 항로", 2, 4, 10, 2);
 
     private final String id;
     private final String label;

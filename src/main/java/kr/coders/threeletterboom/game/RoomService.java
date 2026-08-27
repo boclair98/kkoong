@@ -203,7 +203,7 @@ public class RoomService {
             if (currentPlayer(room) != player) throw new GameProblem("NOT_YOUR_TURN", "지금은 다른 사람 차례예요");
             String word = WordDictionary.normalize(rawWord);
             validateWord(room, word);
-            acceptWord(room, player, word, dictionary.isKnown(word));
+            acceptWord(room, player, word);
             broadcastState(room);
         }
     }
@@ -217,12 +217,15 @@ public class RoomService {
             throw new GameProblem("WRONG_START", "‘" + room.requiredSyllable + "’로 시작해야 해요");
         }
         if (room.usedWords.contains(word)) throw new GameProblem("DUPLICATE", "이미 나온 단어예요");
+        if (!dictionary.isKnown(word)) {
+            throw new GameProblem("NOT_IN_DICTIONARY", "사전에 없는 단어예요. 등록된 명사만 사용할 수 있어요");
+        }
     }
 
-    private void acceptWord(GameRoom room, GameRoom.Player player, String word, boolean verified) {
+    private void acceptWord(GameRoom room, GameRoom.Player player, String word) {
         long remainingSeconds = Math.max(0, (room.deadline - System.currentTimeMillis()) / 1000);
         boolean fever = room.combo >= 6;
-        int points = 100 + (int) remainingSeconds * 8 + Math.min(room.combo, 10) * 6 + (verified ? 20 : 0);
+        int points = 100 + (int) remainingSeconds * 8 + Math.min(room.combo, 10) * 6;
         if (fever) points *= 2;
         player.score += points;
         player.streak++;
@@ -232,7 +235,7 @@ public class RoomService {
         room.usedWords.add(word);
         room.history.add(new GameRoom.WordPlay(player.id, player.nickname, word, points, System.currentTimeMillis()));
         if (room.history.size() > 30) room.history.removeFirst();
-        room.eventText = verified ? player.nickname + " +" + points + " · 사전 보너스!" : player.nickname + " +" + points;
+        room.eventText = player.nickname + " +" + points + " · 사전 인증";
         advanceTurn(room);
     }
 
@@ -343,7 +346,7 @@ public class RoomService {
         if (current.bot && now - room.turnStartedAt > 900 + random.nextInt(900)) {
             String word = dictionary.pick(room.requiredSyllable, room.mode, room.usedWords);
             if (word == null) botRhythmPass(room, current);
-            else acceptWord(room, current, word, true);
+            else acceptWord(room, current, word);
             broadcastState(room);
             return;
         }
