@@ -10,7 +10,7 @@
   <meta property="og:type" content="website">
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/app.css?v=20260827-5">
+  <link rel="stylesheet" href="/app.css?v=20260903-7">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -61,6 +61,22 @@
         <small id="codeHint">영문·숫자 5자리</small>
       </section>
 
+      <section class="dictionary-strip" aria-labelledby="dictionaryTitle">
+        <div>
+          <span class="section-kicker">DICTIONARY SCANNER</span>
+          <h2 id="dictionaryTitle">전송 전, 단어를 확인하세요</h2>
+          <p>실전과 같은 서버 사전으로 미리 인증합니다. 띄어쓰기는 자동으로 정리돼요.</p>
+        </div>
+        <form id="dictionaryForm" class="dictionary-form">
+          <label class="sr-only" for="dictionaryInput">사전 단어 확인</label>
+          <div class="dictionary-input-row">
+            <input id="dictionaryInput" maxlength="4" autocomplete="off" inputmode="text" placeholder="예: 우주선">
+            <button class="button button-dark" type="submit">검증 <span>↗</span></button>
+          </div>
+          <output id="dictionaryResult" class="dictionary-result" aria-live="polite">검증할 단어를 입력하세요</output>
+        </form>
+      </section>
+
       <section class="mode-section" aria-labelledby="modeTitle">
         <div class="section-heading">
           <div><span class="section-kicker">SELECT TRAJECTORY</span><h2 id="modeTitle">오늘의 비행 궤도</h2></div>
@@ -92,7 +108,7 @@
       </section>
     </section>
 
-    <section id="gameScreen" class="screen game-screen" hidden>
+    <section id="gameScreen" class="screen game-screen game-ui" hidden>
       <div class="game-shell">
         <aside class="players-panel panel">
           <div class="panel-heading"><span>CREW MANIFEST</span><strong id="playerCount">0 / 8</strong></div>
@@ -103,6 +119,7 @@
         <section class="arena" aria-labelledby="arenaTitle">
           <div class="arena-top">
             <div><span class="mode-dot"></span><b id="gameMode">기본 궤도</b><small id="gameRule">3글자 · 12초</small></div>
+            <div class="round-chip"><small>ROUND</small><strong id="roundCount">01</strong></div>
             <button class="mobile-room-button" id="mobileShareButton" type="button"><small>ROOM</small> <b id="mobileRoomCode">-----</b> ↗</button>
             <div id="connectionStatus" class="connection connected"><i></i> 연결됨</div>
           </div>
@@ -119,11 +136,14 @@
             <div class="combo-meter"><small>TEAM<br>COMBO</small><strong id="comboCount">0</strong><span>쿵</span></div>
           </div>
           <p id="eventText" class="event-text" aria-live="polite">모두 준비되면 시작해요</p>
-          <form id="wordForm" class="word-form">
-            <label class="sr-only" for="wordInput">이어질 단어</label>
-            <input id="wordInput" autocomplete="off" maxlength="4" placeholder="단어를 입력하세요" disabled>
-            <button class="button button-kung" type="submit" disabled>쿵!</button>
-          </form>
+          <div class="word-entry">
+            <form id="wordForm" class="word-form">
+              <label class="sr-only" for="wordInput">이어질 단어</label>
+              <input id="wordInput" autocomplete="off" maxlength="4" placeholder="단어를 입력하세요" disabled>
+              <button class="button button-kung" type="submit" disabled>쿵!</button>
+            </form>
+            <button class="hint-button" id="hintButton" type="button" disabled>HINT <span id="hintCount">3</span></button>
+          </div>
           <p class="input-hint" id="inputHint">내 차례가 오면 바로 입력할 수 있어요</p>
           <div class="reactions" aria-label="빠른 반응">
             <span>같이 응원하기</span>
@@ -166,6 +186,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=20260827-5" defer></script>
+  <script src="/app.js?v=20260903-7" defer></script>
 </body>
 </html>

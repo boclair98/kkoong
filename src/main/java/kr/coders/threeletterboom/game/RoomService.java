@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class RoomService {
     private static final int MAX_PLAYERS = 8;
+    private static final int HINTS_PER_ROUND = 3;
+    private static final int HINT_COST = 40;
     private static final Set<String> REACTIONS = Set.of("👏", "🔥", "😱", "ㅋㅋ", "💥", "💡");
     private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
 
@@ -53,6 +55,7 @@ public class RoomService {
                 case "quickJoin" -> quickJoin(session, message);
                 case "start" -> withPlayer(session, (room, player) -> start(room, player));
                 case "word" -> withPlayer(session, (room, player) -> submitWord(room, player, text(message, "word")));
+                case "hint" -> withPlayer(session, this::requestHint);
                 case "react" -> withPlayer(session, (room, player) -> react(room, player, text(message, "emoji")));
                 case "addBot" -> withPlayer(session, this::addBot);
                 case "rematch" -> withPlayer(session, (room, player) -> rematch(room, player));
@@ -191,6 +194,7 @@ public class RoomService {
             player.score = 0;
             player.lives = room.mode.lives();
             player.streak = 0;
+            player.hintsRemaining = HINTS_PER_ROUND;
             player.eliminated = false;
         });
         room.eventText = "첫 글자는 ‘" + room.requiredSyllable + "’ — 리듬 시작!";
@@ -237,6 +241,21 @@ public class RoomService {
         if (room.history.size() > 30) room.history.removeFirst();
         room.eventText = player.nickname + " +" + points + " · 사전 인증";
         advanceTurn(room);
+    }
+
+    private void requestHint(GameRoom room, GameRoom.Player player) {
+        synchronized (room) {
+            requirePlaying(room);
+            if (currentPlayer(room) != player) throw new GameProblem("NOT_YOUR_TURN", "지금은 다른 사람 차례예요");
+            if (player.hintsRemaining <= 0) throw new GameProblem("NO_HINTS", "이번 궤도의 힌트를 모두 사용했어요");
+            String word = dictionary.pick(room.requiredSyllable, room.mode, room.usedWords);
+            if (word == null) throw new GameProblem("HINT_UNAVAILABLE", "이 글자로 이어갈 힌트를 찾지 못했어요");
+            player.hintsRemaining--;
+            player.score = Math.max(0, player.score - HINT_COST);
+            room.eventText = player.nickname + "님이 탐색 힌트를 사용했어요 · -" + HINT_COST + "점";
+            broadcastState(room);
+            send(player.session, Map.of("type", "hint", "word", word, "remaining", player.hintsRemaining, "cost", HINT_COST));
+        }
     }
 
     private void addBot(GameRoom room, GameRoom.Player requester) {
@@ -469,6 +488,7 @@ public class RoomService {
             item.put("lives", player.lives);
             item.put("streak", player.streak);
             item.put("wins", player.wins);
+            item.put("hints", player.hintsRemaining);
             item.put("host", player.id.equals(room.hostId));
             return item;
         }).toList());

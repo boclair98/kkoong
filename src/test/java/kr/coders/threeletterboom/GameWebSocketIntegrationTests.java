@@ -10,8 +10,12 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -19,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.HashSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -31,6 +36,23 @@ class GameWebSocketIntegrationTests {
     WordDictionary dictionary;
 
     private final JsonMapper json = JsonMapper.builder().build();
+
+    @Test
+    void dictionaryCheckEndpointSeparatesKnownAndInventedWords() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        String valid = URLEncoder.encode("자전거", StandardCharsets.UTF_8);
+        String invented = URLEncoder.encode("자뷁쀍", StandardCharsets.UTF_8);
+        HttpResponse<String> validResponse = client.send(HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/word/check?word=" + valid)).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> inventedResponse = client.send(HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/word/check?word=" + invented)).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, validResponse.statusCode());
+        assertTrue(json.readTree(validResponse.body()).get("known").asBoolean());
+        assertFalse(json.readTree(inventedResponse.body()).get("known").asBoolean());
+    }
 
     @Test
     void createsRoomRejectsInventedWordAndAcceptsDictionaryNoun() throws Exception {
@@ -51,6 +73,12 @@ class GameWebSocketIntegrationTests {
         assertTrue(playing.get("deadline").asLong() > System.currentTimeMillis());
 
         if (playing.get("turnPlayerId").asText().equals(joined.get("playerId").asText())) {
+            assertEquals(3, playing.get("players").get(0).get("hints").asInt());
+            socket.sendText("{\"type\":\"hint\"}", true).join();
+            JsonNode hint = listener.await("hint", json);
+            assertTrue(dictionary.isKnown(hint.get("word").asText()));
+            assertEquals(2, hint.get("remaining").asInt());
+
             String first = playing.get("requiredSyllable").asText();
             socket.sendText("{\"type\":\"word\",\"word\":\"" + first + "나\"}", true).join();
             JsonNode error = listener.await("error", json);

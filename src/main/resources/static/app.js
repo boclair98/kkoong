@@ -6,14 +6,15 @@
   const els = {
     lobby: $('#lobbyScreen'), game: $('#gameScreen'), dialog: $('#setupDialog'), setupForm: $('#setupForm'),
     nickname: $('#nicknameInput'), modePicker: $('#modePicker'), roomCodeInput: $('#roomCodeInput'), roomList: $('#roomList'),
+    dictionaryForm: $('#dictionaryForm'), dictionaryInput: $('#dictionaryInput'), dictionaryResult: $('#dictionaryResult'),
     onlineCount: $('#onlineCount'), connection: $('#connectionStatus'), playerList: $('#playerList'), playerCount: $('#playerCount'),
-    gameMode: $('#gameMode'), gameRule: $('#gameRule'), timerRing: $('#timerRing'), timerText: $('#timerText'),
+    gameMode: $('#gameMode'), gameRule: $('#gameRule'), round: $('#roundCount'), timerRing: $('#timerRing'), timerText: $('#timerText'),
     required: $('#requiredSyllable'), turnLabel: $('#turnLabel'), lastWord: $('#lastWord'), combo: $('#comboCount'),
     eventText: $('#eventText'), wordForm: $('#wordForm'), wordInput: $('#wordInput'), inputHint: $('#inputHint'),
     roomCode: $('#roomCode'), roomCodeButton: $('#roomCodeButton'), start: $('#startButton'), rematch: $('#rematchButton'),
     addBot: $('#addBotButton'), waitingCopy: $('#waitingCopy'), controls: $('#gameControls'), lengthRule: $('#lengthRule'),
     history: $('#wordHistory'), historyCount: $('#historyCount'), feverBanner: $('#feverBanner'), arena: $('.arena'), mobileRoomCode: $('#mobileRoomCode'),
-    reactionLayer: $('#reactionLayer'), toast: $('#toast'), sound: $('#soundButton')
+    reactionLayer: $('#reactionLayer'), toast: $('#toast'), sound: $('#soundButton'), hint: $('#hintButton'), hintCount: $('#hintCount')
   };
 
   const app = {
@@ -72,6 +73,10 @@
       app.desiredRoom = message.roomCode;
       app.playerId = message.playerId;
       localStorage.setItem('segulja-player', app.playerId);
+      app.pendingWord = '';
+      els.wordInput.value = '';
+      els.wordForm.classList.remove('invalid');
+      els.inputHint.classList.remove('invalid');
       history.replaceState({}, '', `${location.pathname}?room=${message.roomCode}`);
       showGame();
       return;
@@ -88,6 +93,15 @@
     if (message.type === 'reaction') {
       flyReaction(message.emoji, message.nickname);
       tone('reaction');
+      return;
+    }
+    if (message.type === 'hint') {
+      els.wordInput.value = message.word;
+      els.inputHint.classList.remove('invalid');
+      els.inputHint.textContent = `힌트 신호가 입력됐어요 · 남은 힌트 ${message.remaining}개 · ${message.cost}점 차감`;
+      toast(`힌트: ${message.word} · ${message.cost}점`);
+      tone('hint');
+      els.wordInput.focus({preventScroll: true});
       return;
     }
     if (message.type === 'error') {
@@ -111,6 +125,7 @@
   function goHome() {
     if (app.room) send({type: 'leave'});
     app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastHistorySize = 0;
+    app.pendingWord = ''; els.wordInput.value = ''; els.wordForm.classList.remove('invalid');
     app.socket?.close(); app.socket = null;
     history.replaceState({}, '', location.pathname);
     els.game.hidden = true; els.lobby.hidden = false; loadLobby();
@@ -122,6 +137,7 @@
     els.mobileRoomCode.textContent = room.roomCode;
     els.gameMode.textContent = room.mode.label;
     els.gameRule.textContent = `${room.mode.length} · ${room.mode.turnSeconds}초`;
+    els.round.textContent = String(room.round || 1).padStart(2, '0');
     els.lengthRule.textContent = room.mode.length === '3글자' ? '반드시 세 글자' : `${room.mode.length} 단어`;
     els.playerCount.textContent = `${room.players.length} / 8`;
     els.required.textContent = room.requiredSyllable || '쿵';
@@ -140,6 +156,9 @@
       ? `${room.players.find(player => player.id === room.winnerId)?.nickname || '누군가'} 승리` : myTurn ? 'YOUR TRANSMISSION' : `${current?.nickname || '다음 승무원'} 전송 중`;
     els.wordInput.disabled = !myTurn;
     els.wordForm.querySelector('button').disabled = !myTurn;
+    const hints = me?.hints ?? 0;
+    els.hintCount.textContent = hints;
+    els.hint.disabled = !myTurn || hints <= 0;
     els.wordInput.maxLength = room.mode.id === 'relay' ? 4 : 3;
     els.wordInput.placeholder = myTurn ? `‘${room.requiredSyllable}’로 시작하는 사전 명사` : '다음 전송을 기다립니다';
     els.wordForm.classList.remove('invalid');
@@ -174,7 +193,9 @@
       const score = document.createElement('span'); score.className = 'player-score';
       const points = document.createElement('strong'); points.textContent = player.score.toLocaleString();
       const hearts = document.createElement('span'); hearts.className = 'hearts'; hearts.textContent = '♥'.repeat(Math.max(0, player.lives)) + '♡'.repeat(Math.max(0, 2 - player.lives));
-      score.append(points, hearts); card.append(avatar, info, score); return card;
+      const lifeBar = document.createElement('span'); lifeBar.className = 'life-bar';
+      const lifeFill = document.createElement('i'); lifeFill.style.width = `${Math.min(100, Math.max(0, player.lives) / 2 * 100)}%`;
+      lifeBar.append(lifeFill); score.append(points, hearts, lifeBar); card.append(avatar, info, score); return card;
     }));
   }
 
@@ -272,7 +293,7 @@
     try {
       app.audio ||= new AudioContext();
       const ctx = app.audio, oscillator = ctx.createOscillator(), gain = ctx.createGain();
-      const notes = {word: 420, fever: 620, reaction: 520, error: 150, win: 760};
+      const notes = {word: 420, fever: 620, reaction: 520, error: 150, hint: 300, win: 760};
       oscillator.frequency.setValueAtTime(notes[kind] || 400, ctx.currentTime);
       if (kind === 'word' || kind === 'win') oscillator.frequency.exponentialRampToValueAtTime((notes[kind] || 400) * 1.45, ctx.currentTime + .11);
       gain.gain.setValueAtTime(.05, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .18);
@@ -291,6 +312,36 @@
   els.roomCodeInput.addEventListener('input', () => els.roomCodeInput.value = els.roomCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
   els.roomList.addEventListener('click', event => { const card = event.target.closest('[data-room]'); if (card) useIdentityThen('join', {code: card.dataset.room}); });
   $('#refreshRooms').addEventListener('click', loadLobby);
+  els.dictionaryForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const word = els.dictionaryInput.value.trim();
+    if (!word) {
+      els.dictionaryResult.className = 'dictionary-result invalid';
+      els.dictionaryResult.textContent = '단어를 입력해 주세요';
+      return;
+    }
+    els.dictionaryResult.className = 'dictionary-result';
+    els.dictionaryResult.textContent = '서버 사전을 조회하는 중…';
+    try {
+      const response = await fetch(`/api/word/check?word=${encodeURIComponent(word)}`, {cache: 'no-store'});
+      if (!response.ok) throw new Error('lookup failed');
+      const result = await response.json();
+      if (result.known) {
+        els.dictionaryResult.className = 'dictionary-result valid';
+        els.dictionaryResult.textContent = `✓ ${result.word} · DICT VERIFIED · ${result.length}글자`;
+      } else {
+        els.dictionaryResult.className = 'dictionary-result invalid';
+        els.dictionaryResult.textContent = `× ${result.word || word} · 등록된 명사가 아닙니다`;
+      }
+    } catch {
+      els.dictionaryResult.className = 'dictionary-result invalid';
+      els.dictionaryResult.textContent = '사전 서버에 연결하지 못했어요';
+    }
+  });
+  els.dictionaryInput.addEventListener('input', () => {
+    els.dictionaryResult.className = 'dictionary-result';
+    els.dictionaryResult.textContent = '검증할 단어를 입력하세요';
+  });
   els.setupForm.addEventListener('submit', event => {
     event.preventDefault();
     app.nickname = els.nickname.value.trim().replace(/[^가-힣A-Za-z0-9 ]/g, '').slice(0, 10) || `익명쿵${100 + Math.floor(Math.random() * 900)}`;
@@ -306,6 +357,7 @@
     els.wordForm.classList.remove('invalid');
     els.inputHint.classList.remove('invalid');
   });
+  els.hint.addEventListener('click', () => send({type: 'hint'}));
   els.start.addEventListener('click', () => send({type: 'start'}));
   els.rematch.addEventListener('click', () => send({type: 'rematch'}));
   els.addBot.addEventListener('click', () => send({type: 'addBot'}));

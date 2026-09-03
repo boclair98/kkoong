@@ -47,6 +47,7 @@ final class GameRoom {
         int lives;
         int streak;
         int wins;
+        int hintsRemaining = 3;
         long disconnectedAt;
         WebSocketSession session;
 
