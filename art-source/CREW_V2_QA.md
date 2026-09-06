@@ -24,3 +24,21 @@
 
 모바일 검증은 브라우저 뷰포트와 합성 IME 이벤트 기반이며 실제 iOS/Android 키보드 검증을 대체하지 않습니다.
 원본과 개별 프롬프트: [CREW_V2.md](CREW_V2.md).
+
+## 운영 배포 검증
+
+- 배포 ID: `2a4bec28-c211-4453-962c-074fd0fdc87c`, 2026-09-06 16:02:42 KST `ready`.
+- 배포 소스 커밋: `ee86eb2`.
+- `https://segulja-kkung.coders.kr/?ui=crew24-v10`: HTTP 200, 캐시 버전 `20260906-14` 확인.
+- `/actuator/health`: UP. `/api/lobby`: mascotCount 24, dictionaryWords 31484.
+- 새 이미지 20개 모두 HTTP 200, Content-Type image/webp, 파일별 바이트 크기 일치.
+- 공개 주소 390×844 Chrome 갤러리→선택→8인 테스트 전용 방 검증 18개 통과. 콘솔 오류 없음.
+- 테스트 종료 후 방을 나가고 검증 브라우저 종료. 접속자/진행 중 게임/열린 방 0 확인.
+
+### 남은 플랫폼 제한
+
+게임 코드에는 결제·후원 기능이 없지만 공개 페이지에 Coders 호스팅 게이트가
+`https://coders.kr/support?site=segulja-kkung` 후원 링크를 삽입하는 것을 발견했습니다.
+현재 공개 문서와 agent project API에는 이를 끄는 설정이 확인되지 않았습니다.
+사용자가 요청한 후원 완전 비활성화는 플랫폼 삽입 UI까지 포함해서는 아직 충족되지 않습니다.
+게임 코드에 비공식 숨김 처리나 비용 설정 변경은 하지 않았습니다.
