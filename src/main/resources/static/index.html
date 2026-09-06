@@ -11,7 +11,7 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" as="image" href="/assets/orbit-arena-keyart.png">
-  <link rel="stylesheet" href="/app.css?v=20260906-9">
+  <link rel="stylesheet" href="/app.css?v=20260906-10">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -24,7 +24,9 @@
     </button>
     <div class="top-actions">
       <span class="live-pill"><i></i> 지금 <span id="onlineCount">0</span>명 플레이</span>
-      <button class="icon-button" id="soundButton" type="button" aria-label="소리 켜기" aria-pressed="false"><span aria-hidden="true">♪</span> 사운드</button>
+      <button class="icon-button" id="soundButton" type="button" aria-label="배경음악 켜기" aria-pressed="false">
+        <span class="music-bars" aria-hidden="true"><i></i><i></i><i></i></span><b id="soundLabel">BGM OFF</b>
+      </button>
     </div>
   </header>
 
@@ -189,6 +191,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=20260906-9" defer></script>
+  <script src="/app.js?v=20260906-10" defer></script>
 </body>
 </html>

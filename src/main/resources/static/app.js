@@ -14,7 +14,7 @@
     roomCode: $('#roomCode'), roomCodeButton: $('#roomCodeButton'), start: $('#startButton'), rematch: $('#rematchButton'),
     addBot: $('#addBotButton'), waitingCopy: $('#waitingCopy'), controls: $('#gameControls'), lengthRule: $('#lengthRule'),
     history: $('#wordHistory'), historyCount: $('#historyCount'), feverBanner: $('#feverBanner'), arena: $('.arena'), mobileRoomCode: $('#mobileRoomCode'),
-    reactionLayer: $('#reactionLayer'), toast: $('#toast'), sound: $('#soundButton'), hint: $('#hintButton'), hintCount: $('#hintCount')
+    reactionLayer: $('#reactionLayer'), toast: $('#toast'), sound: $('#soundButton'), soundLabel: $('#soundLabel'), hint: $('#hintButton'), hintCount: $('#hintCount')
   };
   const modeLabels = {classic: '클래식 쿵', speed: '번개 쿵', relay: '릴레이 쿵'};
 
@@ -22,7 +22,11 @@
     socket: null, connecting: null, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
     nickname: localStorage.getItem('segulja-nickname') || '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
-    audio: null, lastPhase: null, lastHistorySize: 0, pendingWord: ''
+    lastPhase: null, lastHistorySize: 0, pendingWord: ''
+  };
+  const audioEngine = {
+    ctx: null, master: null, music: null, sfx: null, compressor: null, noise: null, scheduler: null,
+    nextStepAt: 0, step: 0, scene: 'lobby', mode: 'classic', urgency: 0, fever: false
   };
   localStorage.setItem('segulja-player', app.playerId);
 
@@ -129,7 +133,7 @@
     app.pendingWord = ''; els.wordInput.value = ''; els.wordForm.classList.remove('invalid');
     app.socket?.close(); app.socket = null;
     history.replaceState({}, '', location.pathname);
-    els.game.hidden = true; els.lobby.hidden = false; loadLobby();
+    els.game.hidden = true; els.lobby.hidden = false; setMusicState(null); loadLobby();
   }
 
   function renderGame(room) {
@@ -146,6 +150,7 @@
     els.eventText.textContent = room.eventText || '';
     els.lastWord.textContent = room.lastWord ? `방금 단어 · ${room.lastWord} → 다음 ‘${room.requiredSyllable}’` : '게임이 시작되면 첫 글자가 공개돼요';
     els.arena.classList.toggle('fever', room.fever);
+    setMusicState(room);
     renderPlayers(room);
     renderHistory(room.history || []);
 
@@ -224,7 +229,9 @@
       const total = Math.max(5, room.mode.turnSeconds - (room.fever ? 2 : 0)) * 1000;
       const remaining = Math.max(0, room.deadline - (Date.now() + app.serverOffset));
       els.timerText.textContent = (remaining / 1000).toFixed(1);
-      els.timerRing.style.setProperty('--progress', Math.min(1, remaining / total));
+      const progress = Math.min(1, remaining / total);
+      els.timerRing.style.setProperty('--progress', progress);
+      setMusicUrgency(progress <= .13 ? 3 : progress <= .28 ? 2 : progress <= .5 ? 1 : 0);
     }
     requestAnimationFrame(updateTimer);
   }
@@ -289,17 +296,132 @@
     for (let i = 0; i < 24; i++) setTimeout(() => flyReaction(['🎉','⭐','💥','👏'][i % 4], '승리'), i * 35);
   }
 
+  function ensureAudio() {
+    try {
+      if (!audioEngine.ctx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return null;
+        const ctx = new AudioContextClass();
+        const master = ctx.createGain(), music = ctx.createGain(), sfx = ctx.createGain(), compressor = ctx.createDynamicsCompressor();
+        master.gain.value = app.sound ? .82 : .0001; music.gain.value = .0001; sfx.gain.value = .72;
+        compressor.threshold.value = -18; compressor.knee.value = 18; compressor.ratio.value = 4; compressor.attack.value = .006; compressor.release.value = .22;
+        music.connect(master); sfx.connect(master); master.connect(compressor).connect(ctx.destination);
+        const noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * .15), ctx.sampleRate), data = noise.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        Object.assign(audioEngine, {ctx, master, music, sfx, compressor, noise, nextStepAt: ctx.currentTime + .05});
+        audioEngine.scheduler = setInterval(scheduleMusic, 70);
+      }
+      audioEngine.master.gain.setTargetAtTime(app.sound ? .82 : .0001, audioEngine.ctx.currentTime, .025);
+      if (app.sound && audioEngine.ctx.state === 'suspended') audioEngine.ctx.resume().catch(() => {});
+      return audioEngine.ctx;
+    } catch { return null; }
+  }
+
+  const midiHz = note => 440 * 2 ** ((note - 69) / 12);
+
+  function synthNote(time, note, duration, level, type = 'triangle', cutoff = 1800, destination = audioEngine.music) {
+    const ctx = audioEngine.ctx;
+    if (!ctx || !destination) return;
+    const oscillator = ctx.createOscillator(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+    oscillator.type = type; oscillator.frequency.setValueAtTime(midiHz(note), time);
+    filter.type = 'lowpass'; filter.frequency.setValueAtTime(cutoff, time); filter.Q.value = .8;
+    gain.gain.setValueAtTime(.0001, time); gain.gain.exponentialRampToValueAtTime(Math.max(.001, level), time + .012);
+    gain.gain.exponentialRampToValueAtTime(.0001, time + duration);
+    oscillator.connect(filter).connect(gain).connect(destination); oscillator.start(time); oscillator.stop(time + duration + .03);
+  }
+
+  function kick(time, level = .3) {
+    const ctx = audioEngine.ctx, oscillator = ctx.createOscillator(), gain = ctx.createGain();
+    oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(130, time); oscillator.frequency.exponentialRampToValueAtTime(43, time + .15);
+    gain.gain.setValueAtTime(level, time); gain.gain.exponentialRampToValueAtTime(.0001, time + .18);
+    oscillator.connect(gain).connect(audioEngine.music); oscillator.start(time); oscillator.stop(time + .2);
+  }
+
+  function hat(time, level = .06) {
+    const ctx = audioEngine.ctx, source = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+    source.buffer = audioEngine.noise; filter.type = 'highpass'; filter.frequency.value = 6500;
+    gain.gain.setValueAtTime(level, time); gain.gain.exponentialRampToValueAtTime(.0001, time + .045);
+    source.connect(filter).connect(gain).connect(audioEngine.music); source.start(time); source.stop(time + .05);
+  }
+
+  function scheduleMusicStep(time, step) {
+    const roots = [45, 41, 48, 43], root = roots[Math.floor(step / 16) % roots.length], beat = step % 16;
+    if (audioEngine.scene === 'lobby') {
+      if (beat === 0 || beat === 8) {
+        synthNote(time, root, 1.8, .055, 'sine', 950);
+        synthNote(time, root + 7, 1.55, .035, 'triangle', 1300);
+      }
+      if (beat % 4 === 2) synthNote(time, root + 19, .28, .035, 'sine', 2800);
+      return;
+    }
+    if (audioEngine.scene === 'finished') {
+      if (beat % 4 === 0) synthNote(time, root + 12 + [0, 4, 7, 11][beat / 4], .65, .08, 'sine', 2200);
+      return;
+    }
+    if (beat % 8 === 0) kick(time, audioEngine.scene === 'playing' ? .34 : .2);
+    if (audioEngine.scene === 'waiting') {
+      if (beat % 4 === 0) synthNote(time, root, .42, .1, 'triangle', 780);
+      if (beat % 4 === 2) synthNote(time, root + 12 + [0, 7, 3, 10][Math.floor(beat / 4)], .25, .07, 'sine', 2200);
+      return;
+    }
+    const arp = [0, 7, 12, 15, 7, 12, 19, 15];
+    if (beat % 2 === 0 || audioEngine.urgency >= 2) synthNote(time, root + 12 + arp[beat % 8], .14, .12 + audioEngine.urgency * .015, audioEngine.fever ? 'sawtooth' : 'triangle', 1700 + audioEngine.urgency * 700);
+    if (beat % 4 === 0) synthNote(time, root, .34, .17, 'sawtooth', 520 + audioEngine.urgency * 90);
+    if (audioEngine.urgency >= 1 && beat % 2 === 1) hat(time, .035 + audioEngine.urgency * .016);
+    if (audioEngine.urgency >= 3 && beat % 4 === 2) kick(time, .22);
+  }
+
+  function musicBpm() {
+    if (audioEngine.scene === 'lobby') return 76;
+    if (audioEngine.scene === 'waiting') return 92;
+    if (audioEngine.scene === 'finished') return 72;
+    return ({classic: 112, speed: 132, relay: 106}[audioEngine.mode] || 112) + audioEngine.urgency * 7 + (audioEngine.fever ? 12 : 0);
+  }
+
+  function scheduleMusic() {
+    const ctx = audioEngine.ctx;
+    if (!app.sound || !ctx || ctx.state !== 'running') return;
+    if (audioEngine.nextStepAt < ctx.currentTime - .2 || audioEngine.nextStepAt > ctx.currentTime + 1) audioEngine.nextStepAt = ctx.currentTime + .04;
+    while (audioEngine.nextStepAt < ctx.currentTime + .2) {
+      scheduleMusicStep(audioEngine.nextStepAt, audioEngine.step);
+      audioEngine.nextStepAt += 60 / musicBpm() / 4;
+      audioEngine.step = (audioEngine.step + 1) % 64;
+    }
+  }
+
+  function setMusicState(room) {
+    audioEngine.scene = !room ? 'lobby' : room.phase === 'playing' ? 'playing' : room.phase === 'finished' ? 'finished' : 'waiting';
+    audioEngine.mode = room?.mode?.id || 'classic'; audioEngine.fever = Boolean(room?.fever);
+    document.body.dataset.audioScene = audioEngine.scene;
+    if (audioEngine.scene !== 'playing') setMusicUrgency(0);
+    if (!audioEngine.ctx) return;
+    const target = !app.sound ? .0001 : ({lobby: .14, waiting: .22, playing: .34, finished: .18}[audioEngine.scene] || .18);
+    audioEngine.music.gain.setTargetAtTime(target, audioEngine.ctx.currentTime, .18);
+  }
+
+  function setMusicUrgency(level) {
+    audioEngine.urgency = level;
+    document.body.dataset.audioUrgency = String(level);
+    document.body.classList.toggle('music-urgent', level >= 1);
+    document.body.classList.toggle('music-critical', level >= 2);
+  }
+
+  function updateSoundButton() {
+    els.sound.setAttribute('aria-pressed', String(app.sound));
+    els.sound.setAttribute('aria-label', app.sound ? '배경음악 끄기' : '배경음악 켜기');
+    els.soundLabel.textContent = app.sound ? 'BGM ON' : 'BGM OFF';
+    document.body.classList.toggle('music-on', app.sound);
+  }
+
   function tone(kind) {
     if (!app.sound) return;
-    try {
-      app.audio ||= new AudioContext();
-      const ctx = app.audio, oscillator = ctx.createOscillator(), gain = ctx.createGain();
-      const notes = {word: 420, fever: 620, reaction: 520, error: 150, hint: 300, win: 760};
-      oscillator.frequency.setValueAtTime(notes[kind] || 400, ctx.currentTime);
-      if (kind === 'word' || kind === 'win') oscillator.frequency.exponentialRampToValueAtTime((notes[kind] || 400) * 1.45, ctx.currentTime + .11);
-      gain.gain.setValueAtTime(.05, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .18);
-      oscillator.connect(gain).connect(ctx.destination); oscillator.start(); oscillator.stop(ctx.currentTime + .2);
-    } catch { /* sound remains an optional enhancement */ }
+    const ctx = ensureAudio(); if (!ctx) return;
+    const oscillator = ctx.createOscillator(), gain = ctx.createGain();
+    const notes = {word: 420, fever: 620, reaction: 520, error: 150, hint: 300, win: 760};
+    oscillator.type = kind === 'error' ? 'square' : 'sine'; oscillator.frequency.setValueAtTime(notes[kind] || 400, ctx.currentTime);
+    if (kind === 'word' || kind === 'win') oscillator.frequency.exponentialRampToValueAtTime((notes[kind] || 400) * 1.45, ctx.currentTime + .11);
+    gain.gain.setValueAtTime(.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + .18);
+    oscillator.connect(gain).connect(audioEngine.sfx); oscillator.start(); oscillator.stop(ctx.currentTime + .2);
   }
 
   $('#quickButton').addEventListener('click', () => useIdentityThen('quick', {mode: 'classic'}));
@@ -374,12 +496,27 @@
     } catch (error) { if (error?.name !== 'AbortError') toast('주소창의 링크를 복사해 친구에게 보내 주세요'); }
   }
   $('#shareButton').addEventListener('click', shareRoom); $('#mobileShareButton').addEventListener('click', shareRoom); els.roomCodeButton.addEventListener('click', shareRoom);
-  els.sound.setAttribute('aria-pressed', String(app.sound)); els.sound.setAttribute('aria-label', app.sound ? '소리 끄기' : '소리 켜기');
-  els.sound.addEventListener('click', () => {
+  setMusicState(null); updateSoundButton();
+  els.sound.addEventListener('click', async () => {
     app.sound = !app.sound; localStorage.setItem('segulja-sound', app.sound ? 'on' : 'off');
-    els.sound.setAttribute('aria-pressed', String(app.sound)); els.sound.setAttribute('aria-label', app.sound ? '소리 끄기' : '소리 켜기'); tone('word');
+    updateSoundButton();
+    if (app.sound) {
+      const ctx = ensureAudio(); if (ctx) await ctx.resume().catch(() => {});
+      setMusicState(app.room); tone('word'); toast('BGM ON · 시간이 줄수록 박자가 빨라져요');
+    } else if (audioEngine.ctx) {
+      audioEngine.master.gain.setTargetAtTime(.0001, audioEngine.ctx.currentTime, .04);
+      setTimeout(() => { if (!app.sound) audioEngine.ctx?.suspend().catch(() => {}); }, 260);
+    }
   });
   window.addEventListener('keydown', event => { if (event.key === '/' && app.room?.phase === 'playing') { event.preventDefault(); els.wordInput.focus(); } });
+  const unlockAudio = () => { if (app.sound) { ensureAudio(); setMusicState(app.room); } };
+  window.addEventListener('pointerdown', unlockAudio, {once: true, capture: true});
+  window.addEventListener('keydown', unlockAudio, {once: true, capture: true});
+  document.addEventListener('visibilitychange', () => {
+    if (!audioEngine.ctx) return;
+    if (document.hidden) audioEngine.ctx.suspend().catch(() => {});
+    else if (app.sound) audioEngine.ctx.resume().then(() => { audioEngine.nextStepAt = audioEngine.ctx.currentTime + .05; }).catch(() => {});
+  });
 
   loadLobby(); setInterval(() => { if (!app.room) loadLobby(); }, 5000); requestAnimationFrame(updateTimer);
   const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
