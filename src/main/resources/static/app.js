@@ -28,9 +28,10 @@
     nickname: localStorage.getItem('segulja-nickname') || '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < 4 ? savedMascot : 0,
-    lastPhase: null, lastPlayAt: 0, previousLives: new Map(), pendingWord: '', impactQueue: [], impactBusy: false,
+    lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false,
     feedbackTimers: new Set(), lastFever: false, lastTurn: null
   };
+  const wordEntry = new KungInput.WordInput(els.wordInput, {now: () => Date.now() + app.serverOffset});
   const audioEngine = {
     ctx: null, master: null, music: null, sfx: null, compressor: null, noise: null, scheduler: null,
     nextStepAt: 0, step: 0, scene: 'lobby', mode: 'classic', urgency: 0, fever: false
@@ -62,6 +63,7 @@
       socket.onerror = () => { clearTimeout(timeout); app.connecting = null; reject(new Error('socket error')); };
       socket.onclose = () => {
         clearTimeout(timeout); app.connecting = null; setConnection(false, '재연결 중');
+        wordEntry.reset(); syncInputControls();
         if (app.desiredRoom) {
           const delay = Math.min(7000, 700 * 2 ** app.reconnectAttempt++);
           setTimeout(() => connect().catch(() => {}), delay);
@@ -85,8 +87,7 @@
       app.desiredRoom = message.roomCode;
       app.playerId = message.playerId;
       localStorage.setItem('segulja-player', app.playerId);
-      app.pendingWord = '';
-      els.wordInput.value = '';
+      wordEntry.reset();
       els.wordForm.classList.remove('invalid');
       els.inputHint.classList.remove('invalid');
       history.replaceState({}, '', `${location.pathname}?room=${message.roomCode}`);
@@ -94,7 +95,6 @@
       return;
     }
     if (message.type === 'state') {
-      app.pendingWord = '';
       clearTimeout(toast.timer);
       els.toast.classList.remove('show');
       app.serverOffset = message.serverTime - Date.now();
@@ -108,15 +108,16 @@
       return;
     }
     if (message.type === 'hint') {
-      els.wordInput.value = message.word;
+      if (!wordEntry.receiveHint(message.word)) return;
+      syncInputControls();
       els.inputHint.classList.remove('invalid');
       els.inputHint.textContent = `힌트가 입력됐어요 · ${message.remaining}개 남음 · ${message.cost}점 차감`;
       toast(`힌트: ${message.word} · ${message.cost}점`);
       tone('hint');
-      els.wordInput.focus({preventScroll: true});
       return;
     }
     if (message.type === 'error') {
+      wordEntry.reject(); syncInputControls();
       toast(message.message);
       tone('error');
       if (['HANGUL_ONLY', 'WRONG_LENGTH', 'WRONG_START', 'DUPLICATE', 'NOT_IN_DICTIONARY'].includes(message.code)) {
@@ -124,18 +125,16 @@
         showImpact('reject', labels[message.code] || '인정 불가!', message.message, '다시 도전', app.playerId);
         pulseArena('damage-flash');
         vibrate([45, 35, 65]);
-        if (app.pendingWord) els.wordInput.value = app.pendingWord;
         els.wordForm.classList.add('invalid');
         els.inputHint.classList.add('invalid');
         els.inputHint.textContent = message.message;
-        els.wordInput.focus({preventScroll: true});
       }
       if (['ROOM_NOT_FOUND', 'GAME_STARTED', 'GAME_FINISHED', 'ROOM_FULL'].includes(message.code) && !app.room) goHome();
     }
   }
 
   function showGame() {
-    if (els.game.hidden) window.scrollTo({top: 0, behavior: 'smooth'});
+    if (els.game.hidden) window.scrollTo({top: 0, behavior: 'instant'});
     els.lobby.hidden = true; els.game.hidden = false;
   }
 
@@ -143,7 +142,7 @@
     if (app.room) send({type: 'leave'});
     app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastPlayAt = 0; app.lastTurn = null; app.lastFever = false;
     app.previousLives.clear(); resetFeedback(); els.result.hidden = true;
-    app.pendingWord = ''; els.wordInput.value = ''; els.wordForm.classList.remove('invalid');
+    wordEntry.update(null, app.playerId); els.wordForm.classList.remove('invalid'); updateInputViewport();
     app.socket?.close(); app.socket = null;
     history.replaceState({}, '', location.pathname);
     els.game.hidden = true; els.lobby.hidden = false; setMusicState(null); loadLobby();
@@ -151,6 +150,7 @@
 
   function renderGame(room) {
     showGame();
+    wordEntry.update(room, app.playerId);
     els.roomCode.textContent = room.roomCode;
     els.mobileRoomCode.textContent = room.roomCode;
     els.gameMode.textContent = modeLabels[room.mode.id] || room.mode.label;
@@ -179,25 +179,22 @@
     renderResult(room, me);
     els.turnLabel.textContent = room.phase === 'waiting' ? '모두 준비되면 출발!' : room.phase === 'finished'
       ? `🏆 ${room.players.find(player => player.id === room.winnerId)?.nickname || '누군가'} 승리!` : myTurn ? '내 차례! 빠르게 이어주세요' : `${current?.nickname || '다음 플레이어'}님 차례`;
-    els.wordInput.disabled = !myTurn;
-    els.wordForm.querySelector('button').disabled = !myTurn;
     const hints = me?.hints ?? 0;
     els.hintCount.textContent = hints;
-    els.hint.disabled = !myTurn || hints <= 0;
+    syncInputControls();
     els.wordInput.maxLength = room.mode.id === 'relay' ? 4 : 3;
-    els.wordInput.placeholder = myTurn ? `‘${room.requiredSyllable}’로 시작하는 사전 명사` : '다음 전송을 기다립니다';
+    els.wordInput.placeholder = myTurn ? `‘${room.requiredSyllable}’로 시작하는 사전 명사` : '상대 차례 · 다음 글자를 기다려요';
     els.wordForm.classList.remove('invalid');
     els.inputHint.classList.remove('invalid');
-    els.inputHint.textContent = myTurn ? `${room.mode.length} · 사전에 등록된 명사만 성공` : current?.bot ? '쿵봇이 단어를 생각하는 중…' : '내 차례가 되면 입력창이 열려요';
+    els.inputHint.textContent = myTurn ? `${room.mode.length} · 사전에 등록된 명사만 성공` : room.phase === 'playing' ? '상대 차례 · 키보드는 유지되고 다음 차례에 입력이 초기화돼요' : '시작 후 입력창을 눌러 단어를 입력하세요';
     els.start.hidden = room.phase !== 'waiting' || !isHost;
     els.rematch.hidden = room.phase !== 'finished' || !isHost;
     els.addBot.hidden = room.phase !== 'waiting' || !isHost || room.players.length >= 8;
     els.waitingCopy.hidden = room.phase === 'playing';
     els.controls.hidden = room.phase === 'playing' || (!isHost && room.phase !== 'waiting');
     processMatchFeedback(room);
-    if (myTurn && app.lastTurn !== room.turnPlayerId) feedbackLater(() => {
-      if (!els.wordInput.disabled) els.wordInput.focus({preventScroll: true});
-    }, 80);
+    // No asynchronous autofocus: a dismissed mobile keyboard must stay dismissed.
+    updateInputViewport();
 
     app.lastPhase = room.phase;
     app.lastPlayAt = room.history?.at(-1)?.at || 0;
@@ -667,15 +664,46 @@
     app.pendingMode = $('input[name="mode"]:checked', els.modePicker)?.value || app.pendingMode;
     els.dialog.close(); launch(app.setupIntent, {mode: app.pendingMode, code: app.pendingCode});
   });
-  els.wordForm.addEventListener('submit', event => {
-    event.preventDefault(); const word = els.wordInput.value.trim(); if (!word) return;
-    app.pendingWord = word; send({type: 'word', word}); els.wordInput.value = '';
+  function syncInputControls() {
+    const connected = app.socket?.readyState === WebSocket.OPEN;
+    els.wordForm.querySelector('button').disabled = !connected || !wordEntry.canSubmit;
+    els.wordForm.setAttribute('aria-busy', String(wordEntry.pending));
+    const hints = app.room?.players.find(player => player.id === app.playerId)?.hints ?? 0;
+    els.hint.disabled = !connected || !wordEntry.canSubmit || Boolean(wordEntry.hintKey) || hints <= 0;
+  }
+
+  function submitWord(explicitPointer = false) {
+    // Never queue a turn-sensitive word to be replayed after a reconnect.
+    if (app.socket?.readyState !== WebSocket.OPEN) {
+      wordEntry.reset(); syncInputControls(); toast('재연결 중이에요. 연결되면 새 단어를 입력해 주세요'); return;
+    }
+    const word = wordEntry.takeWord(explicitPointer);
+    if (!word) return;
+    try { app.socket.send(JSON.stringify({type: 'word', word})); }
+    catch { wordEntry.reject(); toast('전송하지 못했어요. 새 단어로 다시 시도해 주세요'); }
+    syncInputControls();
+  }
+  els.wordForm.addEventListener('submit', event => { event.preventDefault(); submitWord(); });
+  els.wordForm.querySelector('button').addEventListener('click', event => {
+    event.preventDefault(); submitWord(event.detail > 0);
+  });
+  // Pointer taps must not move focus to a button and collapse the soft keyboard.
+  [els.wordForm.querySelector('button'), els.hint, ...$$('.reactions button')].forEach(button => {
+    button.addEventListener('pointerdown', event => {
+      if (event.button === 0 && document.activeElement === els.wordInput) event.preventDefault();
+    });
   });
   els.wordInput.addEventListener('input', () => {
     els.wordForm.classList.remove('invalid');
     els.inputHint.classList.remove('invalid');
   });
-  els.hint.addEventListener('click', () => send({type: 'hint'}));
+  els.hint.addEventListener('click', () => {
+    if (app.socket?.readyState !== WebSocket.OPEN || !wordEntry.requestHint()) return;
+    els.wordInput.focus({preventScroll: true});
+    try { app.socket.send(JSON.stringify({type: 'hint'})); }
+    catch { wordEntry.reject(); toast('힌트를 요청하지 못했어요. 다시 시도해 주세요'); }
+    syncInputControls();
+  });
   els.start.addEventListener('click', () => send({type: 'start'}));
   els.rematch.addEventListener('click', () => send({type: 'rematch'}));
   els.addBot.addEventListener('click', () => send({type: 'addBot'}));
@@ -703,7 +731,39 @@
       setTimeout(() => { if (!app.sound) audioEngine.ctx?.suspend().catch(() => {}); }, 260);
     }
   });
-  window.addEventListener('keydown', event => { if (event.key === '/' && app.room?.phase === 'playing') { event.preventDefault(); els.wordInput.focus(); } });
+  window.addEventListener('keydown', event => {
+    const editing = event.target instanceof Element && event.target.closest('input,textarea,[contenteditable="true"]');
+    if (event.key === '/' && !editing && !event.isComposing && wordEntry.active) {
+      event.preventDefault(); els.wordInput.focus({preventScroll: true});
+    }
+  });
+
+  let viewportFrameId = 0;
+  function updateInputViewport() {
+    if (viewportFrameId) return;
+    viewportFrameId = requestAnimationFrame(() => {
+      viewportFrameId = 0;
+      const viewport = window.visualViewport;
+      const frame = KungInput.viewportFrame({
+        width: viewport?.width ?? window.innerWidth, height: viewport?.height ?? window.innerHeight,
+        offsetTop: viewport?.offsetTop, offsetLeft: viewport?.offsetLeft, scale: viewport?.scale,
+        focused: document.activeElement === els.wordInput, playing: wordEntry.active
+      });
+      const root = document.documentElement;
+      root.style.setProperty('--game-viewport-height', `${frame.height}px`);
+      root.style.setProperty('--game-viewport-top', `${frame.top}px`);
+      root.style.setProperty('--game-viewport-left', `${frame.left}px`);
+      root.style.setProperty('--game-viewport-width', `${frame.width}px`);
+      root.classList.toggle('game-input-active', frame.compact);
+      root.classList.toggle('game-input-short', frame.compact && frame.short);
+    });
+  }
+  els.wordInput.addEventListener('focus', updateInputViewport);
+  els.wordInput.addEventListener('blur', updateInputViewport);
+  window.addEventListener('resize', updateInputViewport, {passive: true});
+  window.visualViewport?.addEventListener('resize', updateInputViewport, {passive: true});
+  window.visualViewport?.addEventListener('scroll', updateInputViewport, {passive: true});
+  window.addEventListener('pageshow', () => { wordEntry.reset(); updateInputViewport(); });
   const unlockAudio = () => { if (app.sound) { ensureAudio(); setMusicState(app.room); } };
   window.addEventListener('pointerdown', unlockAudio, {once: true, capture: true});
   window.addEventListener('keydown', unlockAudio, {once: true, capture: true});

@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
   <meta name="theme-color" content="#050810">
   <meta name="description" content="검증된 한국어 명사로만 겨루는 실시간 세글자 끝말잇기. 링크 하나로 우주 궤도에 합류하세요.">
   <meta property="og:title" content="세글자쿵!">
@@ -12,8 +12,9 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" as="image" href="/assets/orbit-arena-keyart.png">
   <link rel="preload" as="image" href="/assets/cosmic-mascots-v1.png">
-  <link rel="stylesheet" href="/app.css?v=20260906-12">
-  <link rel="stylesheet" href="/crew.css?v=20260906-12">
+  <link rel="stylesheet" href="/app.css?v=20260906-13">
+  <link rel="stylesheet" href="/crew.css?v=20260906-13">
+  <link rel="stylesheet" href="/game-input.css?v=20260906-13">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -169,15 +170,17 @@
             <div><span>ORBIT FEVER</span><b id="feverGaugeLabel">0 / 7</b></div>
             <span class="fever-track"><i id="feverGaugeFill"></i></span>
           </div>
+          <div class="input-dock">
           <div class="word-entry">
-            <form id="wordForm" class="word-form">
+            <form id="wordForm" class="word-form" autocomplete="off">
               <label class="sr-only" for="wordInput">이어질 단어</label>
-              <input id="wordInput" autocomplete="off" maxlength="4" placeholder="단어를 입력하세요" disabled>
+              <input id="wordInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send" aria-describedby="inputHint" maxlength="4" placeholder="단어를 입력하세요" disabled>
               <button class="button button-kung" type="submit" disabled>쿵!</button>
             </form>
             <button class="hint-button" id="hintButton" type="button" disabled><b>힌트</b><span id="hintCount">3</span></button>
           </div>
           <p class="input-hint" id="inputHint">내 차례가 오면 바로 입력할 수 있어요</p>
+          </div>
           <div class="reactions" aria-label="빠른 반응">
             <span>같이 반응하기</span>
             <button type="button" data-reaction="👏">👏</button><button type="button" data-reaction="🔥">🔥</button>
@@ -227,6 +230,7 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=20260906-12" defer></script>
+  <script src="/game-input.js?v=20260906-13" defer></script>
+  <script src="/app.js?v=20260906-13" defer></script>
 </body>
 </html>

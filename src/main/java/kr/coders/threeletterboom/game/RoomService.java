@@ -536,7 +536,9 @@ public class RoomService {
             synchronized (session) {
                 if (session.isOpen()) session.sendMessage(new TextMessage(payload));
             }
-        } catch (IOException ignored) {
+        } catch (IOException | IllegalStateException ignored) {
+            // The transport can close between isOpen() and sendMessage().
+            // One departing peer must not abort the broadcast to everyone else.
         }
     }
 
