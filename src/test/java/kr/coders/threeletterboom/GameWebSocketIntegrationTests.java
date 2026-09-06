@@ -60,11 +60,13 @@ class GameWebSocketIntegrationTests {
         WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
                 .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), listener).get(5, TimeUnit.SECONDS);
 
-        socket.sendText("{\"type\":\"create\",\"mode\":\"classic\",\"nickname\":\"테스터\",\"playerId\":\"guest-test-1234\"}", true).join();
+        socket.sendText("{\"type\":\"create\",\"mode\":\"classic\",\"nickname\":\"테스터\",\"playerId\":\"guest-test-1234\",\"mascot\":3}", true).join();
         JsonNode joined = listener.await("joined", json);
         assertEquals(5, joined.get("roomCode").asText().length());
         JsonNode waiting = listener.awaitState("waiting", json);
         assertEquals(1, waiting.get("players").size());
+        assertEquals(3, waiting.get("players").get(0).get("mascot").asInt());
+        assertEquals(7, waiting.get("feverTarget").asInt());
 
         socket.sendText("{\"type\":\"start\"}", true).join();
         JsonNode playing = listener.awaitState("playing", json);
@@ -96,6 +98,33 @@ class GameWebSocketIntegrationTests {
             assertEquals(joined.get("playerId").asText(), accepted.get("history").get(0).get("playerId").asText());
         }
         socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+    }
+
+    @Test
+    void sharesCrewChoiceWithOtherPlayersAndBoundsInvalidChoices() throws Exception {
+        MessageListener hostMessages = new MessageListener();
+        MessageListener guestMessages = new MessageListener();
+        HttpClient client = HttpClient.newHttpClient();
+        URI uri = URI.create("ws://localhost:" + port + "/ws/game");
+        WebSocket host = client.newWebSocketBuilder().buildAsync(uri, hostMessages).get(5, TimeUnit.SECONDS);
+        WebSocket guest = client.newWebSocketBuilder().buildAsync(uri, guestMessages).get(5, TimeUnit.SECONDS);
+        try {
+            host.sendText("{\"type\":\"create\",\"nickname\":\"루미테스트\",\"mascot\":1}", true).join();
+            String code = hostMessages.await("joined", json).get("roomCode").asText();
+            hostMessages.awaitState("waiting", json);
+            guest.sendText("{\"type\":\"join\",\"code\":\"" + code + "\",\"nickname\":\"네오테스트\",\"mascot\":999}", true).join();
+            guestMessages.await("joined", json);
+            JsonNode guestState = guestMessages.awaitState("waiting", json);
+            JsonNode hostState = hostMessages.awaitState("waiting", json);
+            assertEquals(2, hostState.get("players").size());
+            assertEquals(1, guestState.get("players").get(0).get("mascot").asInt());
+            int fallback = guestState.get("players").get(1).get("mascot").asInt();
+            assertTrue(fallback >= 0 && fallback < 4);
+            assertEquals(fallback, hostState.get("players").get(1).get("mascot").asInt());
+        } finally {
+            host.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+            guest.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        }
     }
 
     private static final class MessageListener implements WebSocket.Listener {

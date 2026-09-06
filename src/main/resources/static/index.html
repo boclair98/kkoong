@@ -11,7 +11,9 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" as="image" href="/assets/orbit-arena-keyart.png">
-  <link rel="stylesheet" href="/app.css?v=20260906-10">
+  <link rel="preload" as="image" href="/assets/cosmic-mascots-v1.png">
+  <link rel="stylesheet" href="/app.css?v=20260906-12">
+  <link rel="stylesheet" href="/crew.css?v=20260906-12">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -45,6 +47,7 @@
       </div>
 
       <div class="hero-stage" aria-label="세글자쿵 게임 규칙 미리보기">
+        <span class="hero-mascot mascot-sprite" id="heroMascot" aria-hidden="true"></span>
         <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
         <div class="stage-coord coord-a">ROUND 03</div>
         <div class="stage-coord coord-b">12초 안에 입력!</div>
@@ -54,6 +57,17 @@
         <div class="float-tag tag-one">✓ 사전 인증</div>
         <div class="float-tag tag-two">🔥 피버 ×2</div>
       </div>
+      </section>
+
+      <section class="crew-section" aria-labelledby="crewTitle">
+        <div class="section-heading"><div><span class="section-kicker">나와 함께할 우주 크루</span><h2 id="crewTitle">오늘은 누구로 출격할까요?</h2></div><p>모든 캐릭터 무료 · 능력치는 모두 같아요</p></div>
+        <div class="crew-grid" aria-label="캐릭터 선택">
+          <button type="button" class="crew-card" data-mascot="0" aria-pressed="true"><span class="mascot-sprite" style="--sprite-x:0;--sprite-y:0" aria-hidden="true"></span><span><small>토끼 파일럿</small><strong>루미</strong><em>준비됐지? 같이 쿵!</em></span><b>선택됨</b></button>
+          <button type="button" class="crew-card" data-mascot="1" aria-pressed="false"><span class="mascot-sprite" style="--sprite-x:1;--sprite-y:0" aria-hidden="true"></span><span><small>여우 항해사</small><strong>노바</strong><em>다음 단어는 내 손안에.</em></span><b>선택</b></button>
+          <button type="button" class="crew-card" data-mascot="2" aria-pressed="false"><span class="mascot-sprite" style="--sprite-x:0;--sprite-y:1" aria-hidden="true"></span><span><small>곰 정비사</small><strong>볼트</strong><em>콤보 엔진, 가동!</em></span><b>선택</b></button>
+          <button type="button" class="crew-card" data-mascot="3" aria-pressed="false"><span class="mascot-sprite" style="--sprite-x:1;--sprite-y:1" aria-hidden="true"></span><span><small>고양이 정찰대</small><strong>네오</strong><em>한 박자 빠르게, 냥!</em></span><b>선택</b></button>
+        </div>
+        <p id="crewSelection" class="crew-selection" role="status">루미와 함께 출격해요</p>
       </section>
 
       <section class="join-strip" aria-labelledby="joinTitle">
@@ -130,8 +144,15 @@
           </div>
           <div id="feverBanner" class="fever-banner" aria-live="polite">🔥 피버 타임! 점수 2배</div>
           <div class="beat-zone">
-            <div class="timer-ring" id="timerRing" style="--progress:1">
-              <div class="timer-core"><small>남은 시간</small><strong id="timerText">12.0</strong><span>초</span></div>
+            <div class="combatant-stage" id="combatantStage">
+              <div class="mascot-frame">
+                <span id="activeMascot" class="mascot-sprite" role="img" aria-label="현재 플레이어 캐릭터"></span>
+                <i class="turn-beacon" aria-hidden="true"></i>
+              </div>
+              <div class="combatant-name"><strong id="activePilot">탐사대 대기 중</strong><small id="mascotMood">READY</small></div>
+              <div class="timer-ring" id="timerRing" style="--progress:1">
+                <div class="timer-core"><small>남은 시간</small><strong id="timerText">12.0</strong><span>초</span></div>
+              </div>
             </div>
             <div class="turn-copy">
               <p id="turnLabel">게임을 기다리는 중</p>
@@ -140,7 +161,14 @@
             </div>
             <div class="combo-meter"><small>연속 성공</small><strong id="comboCount">0</strong><span>COMBO</span></div>
           </div>
-          <p id="eventText" class="event-text" aria-live="polite">모두 준비되면 시작해요</p>
+          <div class="feedback-rail">
+            <p id="eventText" class="event-text">모두 준비되면 시작해요</p>
+            <div id="impactLayer" class="impact-layer" role="status" aria-live="polite" aria-atomic="true"></div>
+          </div>
+          <div class="fever-gauge" aria-label="피버 게이지">
+            <div><span>ORBIT FEVER</span><b id="feverGaugeLabel">0 / 7</b></div>
+            <span class="fever-track"><i id="feverGaugeFill"></i></span>
+          </div>
           <div class="word-entry">
             <form id="wordForm" class="word-form">
               <label class="sr-only" for="wordInput">이어질 단어</label>
@@ -157,6 +185,13 @@
             <button type="button" data-reaction="💥">💥</button><button type="button" data-reaction="💡">💡</button>
           </div>
           <div id="reactionLayer" class="reaction-layer" aria-hidden="true"></div>
+          <section id="resultOverlay" class="result-overlay" aria-labelledby="resultTitle" hidden>
+            <span class="result-kicker" id="resultKicker">MISSION COMPLETE</span>
+            <div class="result-mascot"><span id="resultMascot" class="mascot-sprite" role="img" aria-label="우승 캐릭터"></span></div>
+            <h2 id="resultTitle">궤도의 주인공!</h2>
+            <strong id="resultWinner">승자</strong>
+            <p id="resultSummary">멋진 승부였습니다</p>
+          </section>
         </section>
 
         <aside class="room-panel panel">
@@ -181,6 +216,7 @@
     <form method="dialog" id="setupForm">
       <button class="dialog-close" value="cancel" aria-label="닫기">×</button>
       <span class="dialog-kicker">게임 준비</span><h2>플레이할 이름을 정해주세요</h2>
+      <div class="setup-crew"><span id="setupMascot" class="mascot-sprite" aria-hidden="true"></span><span id="setupCrewName">루미와 함께 출격!</span></div>
       <label for="nicknameInput">별명</label><input id="nicknameInput" maxlength="10" autocomplete="nickname" placeholder="예: 리듬고수">
       <fieldset id="modePicker"><legend>게임 모드</legend>
         <label><input type="radio" name="mode" value="classic" checked><span><b>정통</b><small>3글자 · 12초</small></span></label>
@@ -191,6 +227,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=20260906-10" defer></script>
+  <script src="/app.js?v=20260906-12" defer></script>
 </body>
 </html>

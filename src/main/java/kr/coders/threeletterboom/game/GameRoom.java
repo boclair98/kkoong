@@ -47,12 +47,14 @@ final class GameRoom {
         int lives;
         int streak;
         int wins;
+        int mascot;
         int hintsRemaining = 3;
         long disconnectedAt;
         WebSocketSession session;
 
         Player(String id, String nickname, boolean bot, int lives, WebSocketSession session) {
             this.id = id;
+            this.mascot = Math.floorMod(id.hashCode(), 4);
             this.nickname = nickname;
             this.bot = bot;
             this.lives = lives;

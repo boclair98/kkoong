@@ -14,15 +14,22 @@
     roomCode: $('#roomCode'), roomCodeButton: $('#roomCodeButton'), start: $('#startButton'), rematch: $('#rematchButton'),
     addBot: $('#addBotButton'), waitingCopy: $('#waitingCopy'), controls: $('#gameControls'), lengthRule: $('#lengthRule'),
     history: $('#wordHistory'), historyCount: $('#historyCount'), feverBanner: $('#feverBanner'), arena: $('.arena'), mobileRoomCode: $('#mobileRoomCode'),
-    reactionLayer: $('#reactionLayer'), toast: $('#toast'), sound: $('#soundButton'), soundLabel: $('#soundLabel'), hint: $('#hintButton'), hintCount: $('#hintCount')
+    reactionLayer: $('#reactionLayer'), impactLayer: $('#impactLayer'), combatantStage: $('#combatantStage'), activeMascot: $('#activeMascot'),
+    activePilot: $('#activePilot'), mascotMood: $('#mascotMood'), feverGaugeFill: $('#feverGaugeFill'), feverGaugeLabel: $('#feverGaugeLabel'),
+    result: $('#resultOverlay'), resultKicker: $('#resultKicker'), resultMascot: $('#resultMascot'), resultWinner: $('#resultWinner'), resultSummary: $('#resultSummary'),
+    toast: $('#toast'), sound: $('#soundButton'), soundLabel: $('#soundLabel'), hint: $('#hintButton'), hintCount: $('#hintCount')
   };
   const modeLabels = {classic: '클래식 쿵', speed: '번개 쿵', relay: '릴레이 쿵'};
+  const crewNames = ['루미', '노바', '볼트', '네오'];
+  const savedMascot = Number(localStorage.getItem('segulja-mascot'));
 
   const app = {
     socket: null, connecting: null, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
     nickname: localStorage.getItem('segulja-nickname') || '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
-    lastPhase: null, lastHistorySize: 0, pendingWord: ''
+    mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < 4 ? savedMascot : 0,
+    lastPhase: null, lastPlayAt: 0, previousLives: new Map(), pendingWord: '', impactQueue: [], impactBusy: false,
+    feedbackTimers: new Set(), lastFever: false, lastTurn: null
   };
   const audioEngine = {
     ctx: null, master: null, music: null, sfx: null, compressor: null, noise: null, scheduler: null,
@@ -47,7 +54,7 @@
         // Rejoin synchronously before releasing queued actions. Otherwise a word
         // submitted during a reconnect can reach the server before room recovery.
         if (app.desiredRoom) socket.send(JSON.stringify({
-          type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId
+          type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId, mascot: app.mascot
         }));
         resolve(socket);
       };
@@ -113,6 +120,10 @@
       toast(message.message);
       tone('error');
       if (['HANGUL_ONLY', 'WRONG_LENGTH', 'WRONG_START', 'DUPLICATE', 'NOT_IN_DICTIONARY'].includes(message.code)) {
+        const labels = {HANGUL_ONLY: '한글만!', WRONG_LENGTH: '글자 수!', WRONG_START: '첫 글자!', DUPLICATE: '중복 단어!', NOT_IN_DICTIONARY: '사전 미등록!'};
+        showImpact('reject', labels[message.code] || '인정 불가!', message.message, '다시 도전', app.playerId);
+        pulseArena('damage-flash');
+        vibrate([45, 35, 65]);
         if (app.pendingWord) els.wordInput.value = app.pendingWord;
         els.wordForm.classList.add('invalid');
         els.inputHint.classList.add('invalid');
@@ -124,12 +135,14 @@
   }
 
   function showGame() {
-    els.lobby.hidden = true; els.game.hidden = false; window.scrollTo({top: 0, behavior: 'smooth'});
+    if (els.game.hidden) window.scrollTo({top: 0, behavior: 'smooth'});
+    els.lobby.hidden = true; els.game.hidden = false;
   }
 
   function goHome() {
     if (app.room) send({type: 'leave'});
-    app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastHistorySize = 0;
+    app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastPlayAt = 0; app.lastTurn = null; app.lastFever = false;
+    app.previousLives.clear(); resetFeedback(); els.result.hidden = true;
     app.pendingWord = ''; els.wordInput.value = ''; els.wordForm.classList.remove('invalid');
     app.socket?.close(); app.socket = null;
     history.replaceState({}, '', location.pathname);
@@ -147,6 +160,10 @@
     els.playerCount.textContent = `${room.players.length} / 8`;
     els.required.textContent = room.requiredSyllable || '쿵';
     els.combo.textContent = room.combo;
+    const feverTarget = room.feverTarget || 7;
+    const feverProgress = Math.min(100, Math.max(0, room.combo) / feverTarget * 100);
+    els.feverGaugeFill.style.width = `${room.fever ? 100 : feverProgress}%`;
+    els.feverGaugeLabel.textContent = room.fever ? 'FEVER ×2' : `${Math.min(room.combo, feverTarget)} / ${feverTarget}`;
     els.eventText.textContent = room.eventText || '';
     els.lastWord.textContent = room.lastWord ? `방금 단어 · ${room.lastWord} → 다음 ‘${room.requiredSyllable}’` : '게임이 시작되면 첫 글자가 공개돼요';
     els.arena.classList.toggle('fever', room.fever);
@@ -158,6 +175,8 @@
     const current = room.players.find(player => player.id === room.turnPlayerId);
     const isHost = room.hostId === app.playerId;
     const myTurn = room.phase === 'playing' && room.turnPlayerId === app.playerId && !me?.eliminated;
+    renderCombatant(room, current, me);
+    renderResult(room, me);
     els.turnLabel.textContent = room.phase === 'waiting' ? '모두 준비되면 출발!' : room.phase === 'finished'
       ? `🏆 ${room.players.find(player => player.id === room.winnerId)?.nickname || '누군가'} 승리!` : myTurn ? '내 차례! 빠르게 이어주세요' : `${current?.nickname || '다음 플레이어'}님 차례`;
     els.wordInput.disabled = !myTurn;
@@ -175,22 +194,24 @@
     els.addBot.hidden = room.phase !== 'waiting' || !isHost || room.players.length >= 8;
     els.waitingCopy.hidden = room.phase === 'playing';
     els.controls.hidden = room.phase === 'playing' || (!isHost && room.phase !== 'waiting');
-    if (myTurn) setTimeout(() => els.wordInput.focus({preventScroll: true}), 80);
+    processMatchFeedback(room);
+    if (myTurn && app.lastTurn !== room.turnPlayerId) feedbackLater(() => {
+      if (!els.wordInput.disabled) els.wordInput.focus({preventScroll: true});
+    }, 80);
 
-    if (app.lastPhase === 'playing' && room.phase === 'finished') {
-      celebrate(); tone('win');
-    } else if ((room.history?.length || 0) > app.lastHistorySize) {
-      tone(room.fever ? 'fever' : 'word');
-    }
     app.lastPhase = room.phase;
-    app.lastHistorySize = room.history?.length || 0;
+    app.lastPlayAt = room.history?.at(-1)?.at || 0;
+    app.lastFever = Boolean(room.fever); app.lastTurn = room.turnPlayerId;
+    app.previousLives = new Map(room.players.map(player => [player.id, player.lives]));
   }
 
   function renderPlayers(room) {
     els.playerList.replaceChildren(...room.players.map((player, index) => {
       const card = document.createElement('div');
       card.className = `player-card${player.id === room.turnPlayerId ? ' active' : ''}${player.eliminated ? ' eliminated' : ''}${!player.connected ? ' disconnected' : ''}`;
-      const avatar = document.createElement('span'); avatar.className = 'avatar'; avatar.textContent = player.bot ? '봇' : [...player.nickname][0] || index + 1;
+      card.dataset.playerId = player.id;
+      const avatar = document.createElement('span'); avatar.className = 'avatar mascot-sprite';
+      setMascotSprite(avatar, player.id); avatar.role = 'img'; avatar.ariaLabel = `${player.nickname}의 우주 캐릭터`;
       const info = document.createElement('span'); info.className = 'player-name';
       const name = document.createElement('b'); name.textContent = player.nickname;
       if (player.host) { const crown = document.createElement('i'); crown.className = 'host-crown'; crown.textContent = '★ 방장'; name.append(crown); }
@@ -210,8 +231,9 @@
     if (!history.length) {
       els.history.innerHTML = '<li class="history-empty">첫 신호를 기다립니다</li>'; return;
     }
-    els.history.replaceChildren(...[...history].reverse().map(play => {
+    els.history.replaceChildren(...[...history].reverse().map((play, index) => {
       const li = document.createElement('li'); const left = document.createElement('span');
+      if (index === 0) li.classList.add('latest');
       const word = document.createElement('b'); word.textContent = play.word;
       const name = document.createElement('small'); name.textContent = play.nickname;
       left.append(word, document.createTextNode(' · '), name);
@@ -220,17 +242,189 @@
     }));
   }
 
+  function mascotIndex(playerId = '') {
+    let hash = 0;
+    for (const character of playerId) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+    return Math.abs(hash) % 4;
+  }
+
+  function setMascotSprite(element, playerId) {
+    const player = app.room?.players.find(item => item.id === playerId);
+    const index = player?.mascot ?? mascotIndex(playerId);
+    applyMascot(element, index);
+  }
+
+  function applyMascot(element, index) {
+    element.style.setProperty('--sprite-x', index % 2);
+    element.style.setProperty('--sprite-y', Math.floor(index / 2));
+    element.dataset.mascot = String(index);
+  }
+
+  function renderCrewSelection() {
+    $$('.crew-card').forEach(button => {
+      const selected = Number(button.dataset.mascot) === app.mascot;
+      button.setAttribute('aria-pressed', String(selected));
+      button.querySelector('b').textContent = selected ? '선택됨' : '선택';
+    });
+    applyMascot($('#heroMascot'), app.mascot);
+    applyMascot($('#setupMascot'), app.mascot);
+    $('#crewSelection').textContent = `${crewNames[app.mascot]}와 함께 출격해요 · 모든 캐릭터는 외형만 달라요`;
+    $('#setupCrewName').textContent = `${crewNames[app.mascot]}와 함께 출격!`;
+  }
+
+  function renderCombatant(room, current, me) {
+    const featured = room.phase === 'finished'
+      ? room.players.find(player => player.id === room.winnerId) || me || room.players[0]
+      : current || me || room.players[0];
+    if (!featured) return;
+    setMascotSprite(els.activeMascot, featured.id);
+    els.activePilot.textContent = featured.nickname;
+    els.combatantStage.classList.toggle('mine', featured.id === app.playerId);
+    els.combatantStage.dataset.state = room.phase;
+    els.mascotMood.textContent = room.phase === 'finished' ? 'ORBIT KING' : room.phase === 'waiting' ? 'READY'
+      : featured.id === app.playerId ? 'YOUR TURN' : featured.bot ? 'BOT THINKING' : 'NOW PLAYING';
+  }
+
+  function renderResult(room, me) {
+    if (room.phase !== 'finished') {
+      els.result.hidden = true;
+      return;
+    }
+    const winner = room.players.find(player => player.id === room.winnerId);
+    if (!winner) return;
+    setMascotSprite(els.resultMascot, winner.id);
+    els.resultKicker.textContent = winner.id === app.playerId ? 'YOU RULE THE ORBIT' : 'MISSION COMPLETE';
+    els.resultWinner.textContent = winner.nickname;
+    els.resultSummary.textContent = `${winner.score.toLocaleString()}점 · ${winner.wins}승 달성`;
+    els.result.hidden = false;
+    els.result.classList.toggle('mine', winner.id === app.playerId && Boolean(me));
+  }
+
+  function processMatchFeedback(room) {
+    if (app.lastPhase === null) return;
+    if ((app.lastPhase === 'waiting' || app.lastPhase === 'finished') && room.phase === 'playing') {
+      resetFeedback();
+      showImpact('start', '출격!', `첫 글자 ‘${room.requiredSyllable}’ · 박자에 올라타세요`, `ROUND ${room.round}`);
+      pulseArena('start-flash');
+    }
+
+    const latest = room.history?.at(-1);
+    if (latest && latest.at > app.lastPlayAt) {
+      const mine = latest.playerId === app.playerId;
+      showImpact('success', latest.word, `${latest.nickname} · ${room.combo} COMBO${room.fever ? ' · 피버 ×2' : ''}`, `+${latest.points}`, latest.playerId, mine);
+      pulseArena('success-flash');
+      animatePlayer(latest.playerId, 'scored');
+      burstParticles(room.fever ? 'fever' : 'success');
+      if (mine) vibrate([22, 28, 38]);
+      tone(room.fever ? 'fever' : 'word');
+    }
+
+    room.players.forEach(player => {
+      const previousLives = app.previousLives.get(player.id);
+      if (previousLives === undefined || player.lives >= previousLives) return;
+      const mine = player.id === app.playerId;
+      showImpact('miss', player.eliminated ? '이번 판 탈락' : '시간 초과!', `${player.nickname} · ${player.eliminated ? '관전하며 응원해요' : `생명 ${player.lives}개 남음`}`, `♥ −${previousLives - player.lives}`, player.id, mine);
+      pulseArena('damage-flash');
+      animatePlayer(player.id, 'hit');
+      if (mine) vibrate([90, 45, 110]);
+      tone('error');
+    });
+
+    if (app.lastPhase === 'playing' && room.phase === 'finished') {
+      celebrate(); tone('win');
+    }
+  }
+
+  function feedbackLater(callback, delay) {
+    const timer = setTimeout(() => { app.feedbackTimers.delete(timer); callback(); }, delay);
+    app.feedbackTimers.add(timer);
+    return timer;
+  }
+
+  function resetFeedback() {
+    app.feedbackTimers.forEach(clearTimeout); app.feedbackTimers.clear();
+    app.impactQueue.length = 0; app.impactBusy = false;
+    els.impactLayer.replaceChildren(); els.reactionLayer.replaceChildren();
+    els.arena.classList.remove('success-flash', 'damage-flash', 'start-flash');
+  }
+
+  function showImpact(kind, title, detail, badge = '', playerId = '', mine = false) {
+    // Repeated submissions must not build a backlog that outlives the turn.
+    if (kind === 'reject') app.impactQueue = app.impactQueue.filter(item => item.kind !== 'reject');
+    if (app.impactQueue.length >= 2) app.impactQueue.shift();
+    app.impactQueue.push({kind, title, detail, badge, playerId, mine});
+    pumpImpact();
+  }
+
+  function pumpImpact() {
+    if (app.impactBusy || !app.impactQueue.length) return;
+    app.impactBusy = true;
+    const notice = app.impactQueue.shift();
+    const card = document.createElement('div');
+    card.className = `impact-card ${notice.kind}${notice.mine ? ' mine' : ''}`;
+    if (notice.playerId) {
+      const portrait = document.createElement('span'); portrait.className = 'impact-mascot mascot-sprite';
+      setMascotSprite(portrait, notice.playerId); card.append(portrait);
+    }
+    const copy = document.createElement('span'); copy.className = 'impact-copy';
+    const kicker = document.createElement('small');
+    kicker.textContent = ({success: 'NICE KUNG!', miss: 'MISS', reject: 'NOT ACCEPTED', start: 'GET READY'}[notice.kind] || 'KUNG!');
+    const heading = document.createElement('strong'); heading.textContent = notice.title;
+    const description = document.createElement('span'); description.textContent = notice.detail;
+    copy.append(kicker, heading, description); card.append(copy);
+    if (notice.badge) { const badge = document.createElement('b'); badge.textContent = notice.badge; card.append(badge); }
+    els.impactLayer.replaceChildren(card);
+    requestAnimationFrame(() => { if (card.isConnected) card.classList.add('show'); });
+    const duration = notice.kind === 'miss' || notice.kind === 'reject' ? 1450 : 1150;
+    feedbackLater(() => {
+      card.classList.add('exit');
+      feedbackLater(() => {
+        card.remove(); app.impactBusy = false; pumpImpact();
+      }, 260);
+    }, duration);
+  }
+
+  function pulseArena(className) {
+    els.arena.classList.remove(className);
+    void els.arena.offsetWidth;
+    els.arena.classList.add(className);
+    feedbackLater(() => els.arena.classList.remove(className), 700);
+  }
+
+  function animatePlayer(playerId, className) {
+    const card = [...els.playerList.children].find(item => item.dataset.playerId === playerId);
+    if (!card) return;
+    card.classList.add(className);
+    feedbackLater(() => card.classList.remove(className), 760);
+  }
+
+  function burstParticles(kind) {
+    for (let index = 0; index < 18; index++) {
+      const particle = document.createElement('i'); particle.className = `impact-particle ${kind}`;
+      particle.style.setProperty('--angle', `${index * 20 + Math.random() * 12}deg`);
+      particle.style.setProperty('--distance', `${90 + Math.random() * 150}px`);
+      particle.style.setProperty('--delay', `${Math.random() * 90}ms`);
+      els.reactionLayer.append(particle); feedbackLater(() => particle.remove(), 1000);
+    }
+  }
+
+  function vibrate(pattern) {
+    try { navigator.vibrate?.(pattern); } catch { /* haptics are optional */ }
+  }
+
   function updateTimer() {
     const room = app.room;
     if (!room || room.phase !== 'playing') {
       els.timerText.textContent = room?.mode?.turnSeconds?.toFixed?.(1) || '—';
       els.timerRing.style.setProperty('--progress', 1);
+      els.combatantStage.classList.remove('urgent');
     } else {
       const total = Math.max(5, room.mode.turnSeconds - (room.fever ? 2 : 0)) * 1000;
       const remaining = Math.max(0, room.deadline - (Date.now() + app.serverOffset));
       els.timerText.textContent = (remaining / 1000).toFixed(1);
       const progress = Math.min(1, remaining / total);
       els.timerRing.style.setProperty('--progress', progress);
+      els.combatantStage.classList.toggle('urgent', progress <= .28);
       setMusicUrgency(progress <= .13 ? 3 : progress <= .28 ? 2 : progress <= .5 ? 1 : 0);
     }
     requestAnimationFrame(updateTimer);
@@ -271,9 +465,10 @@
 
   function launch(intent, options = {}) {
     const mode = options.mode || app.pendingMode || 'classic';
-    if (intent === 'create') send({type: 'create', mode, nickname: app.nickname, playerId: app.playerId});
-    else if (intent === 'quick') send({type: 'quickJoin', mode, nickname: app.nickname, playerId: app.playerId});
-    else if (intent === 'join') send({type: 'join', code: options.code || app.pendingCode, nickname: app.nickname, playerId: app.playerId});
+    const identity = {nickname: app.nickname, playerId: app.playerId, mascot: app.mascot};
+    if (intent === 'create') send({type: 'create', mode, ...identity});
+    else if (intent === 'quick') send({type: 'quickJoin', mode, ...identity});
+    else if (intent === 'join') send({type: 'join', code: options.code || app.pendingCode, ...identity});
   }
 
   function setConnection(ok, label) {
@@ -289,11 +484,11 @@
   function flyReaction(emoji, nickname) {
     const item = document.createElement('div'); item.className = 'flying-reaction'; item.textContent = emoji;
     item.title = `${nickname}님의 반응`; item.style.left = `${12 + Math.random() * 76}%`;
-    els.reactionLayer.append(item); setTimeout(() => item.remove(), 2400);
+    els.reactionLayer.append(item); feedbackLater(() => item.remove(), 2400);
   }
 
   function celebrate() {
-    for (let i = 0; i < 24; i++) setTimeout(() => flyReaction(['🎉','⭐','💥','👏'][i % 4], '승리'), i * 35);
+    for (let i = 0; i < 24; i++) feedbackLater(() => flyReaction(['🎉','⭐','💥','👏'][i % 4], '승리'), i * 35);
   }
 
   function ensureAudio() {
@@ -518,6 +713,11 @@
     else if (app.sound) audioEngine.ctx.resume().then(() => { audioEngine.nextStepAt = audioEngine.ctx.currentTime + .05; }).catch(() => {});
   });
 
+  $$('.crew-card').forEach(button => button.addEventListener('click', () => {
+    app.mascot = Number(button.dataset.mascot);
+    localStorage.setItem('segulja-mascot', String(app.mascot)); renderCrewSelection(); tone('reaction');
+  }));
+  renderCrewSelection();
   loadLobby(); setInterval(() => { if (!app.room) loadLobby(); }, 5000); requestAnimationFrame(updateTimer);
   const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (initialRoom?.length === 5) useIdentityThen('join', {code: initialRoom});

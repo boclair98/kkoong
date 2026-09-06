@@ -1,0 +1,124 @@
+/* Cosmic crew and a feedback rail that never covers the next word. */
+.player-list .player-card .avatar.mascot-sprite {
+  background: #151848 url('/assets/cosmic-mascots-v1.png') no-repeat;
+  background-size: 200% 200%;
+  background-position: calc(var(--sprite-x,0)*100%) calc(var(--sprite-y,0)*100%);
+}
+.hero-mascot { position:absolute; z-index:2; width:clamp(240px,28vw,440px); aspect-ratio:1; top:20%; left:15%; filter:drop-shadow(0 20px 32px #080626); animation:mascot-bob 3s ease-in-out infinite; }
+.hero-stage .demo-kung { width:110px; height:110px; top:70%; left:27%; }
+.hero-stage .demo-kung span { font-size:35px; }
+.hero-stage .demo-left { top:22%; left:0; }
+.hero-stage .demo-right { bottom:17%; right:6%; }
+.crew-section { margin:54px 0 34px; }
+.crew-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+.crew-card { position:relative; min-width:0; padding:14px 18px 20px; border:1px solid var(--line); border-radius:23px; color:var(--ink); background:radial-gradient(ellipse at 50% 30%,rgba(93,102,240,.22),transparent 65%),#10102d; cursor:pointer; text-align:left; transition:transform .2s,border-color .2s,box-shadow .2s; }
+.crew-card:hover { transform:translateY(-5px); border-color:var(--cyan); }
+.crew-card[aria-pressed="true"] { border-color:var(--cyan); box-shadow:0 0 0 2px rgba(99,229,255,.1),0 12px 40px rgba(51,143,243,.14); background-color:#141d40; }
+.crew-card>.mascot-sprite { width:100%; aspect-ratio:1; filter:drop-shadow(0 12px 16px rgba(0,0,20,.32)); }
+.crew-card>span+span { display:grid; gap:5px; }
+.crew-card small { color:#9cabc9; font-size:10px; }
+.crew-card strong { font-size:23px; letter-spacing:-.04em; }
+.crew-card em { color:#9ba8c8; font-size:11px; font-style:normal; }
+.crew-card>b { position:absolute; top:14px; right:14px; padding:6px 8px; border-radius:8px; color:#8893b0; background:#070c29; font-size:9px; }
+.crew-card[aria-pressed="true"]>b { color:#032538; background:var(--cyan); }
+.crew-selection { margin:13px 0 0; color:#a8c3de; font-size:11px; }
+.setup-crew { margin:-15px 0 16px; display:flex; align-items:center; gap:12px; color:#acd5eb; font-size:12px; }
+.setup-crew .mascot-sprite { width:58px; height:58px; }
+.beat-zone { min-height:350px; grid-template-columns:minmax(115px,.8fr) minmax(190px,1.3fr) 60px; gap:14px; }
+.combatant-stage { min-height:285px; padding-bottom:0; }
+.mascot-frame { width:clamp(120px,13vw,185px); }
+.mascot-frame .mascot-sprite { inset:0; width:100%; height:100%; }
+.combatant-stage .timer-ring { position:relative; right:auto; bottom:auto; margin-top:13px; width:65px; height:65px; }
+.combatant-stage .timer-ring::before { width:57px; }
+.combatant-stage .timer-core strong { font-size:18px; }
+.combatant-stage .timer-core small,.combatant-stage .timer-core span { display:none; }
+.combatant-name { width:min(100%,160px); }
+.turn-copy h1 { flex-direction:column; gap:17px; }
+.turn-copy h1 span { width:clamp(130px,13vw,185px); font-size:clamp(70px,8vw,104px); }
+.turn-copy h1 i { font-size:14px; }
+.turn-copy>p { font-size:12px; margin-bottom:25px; }
+.last-word { margin-top:14px; white-space:normal; line-height:1.45; }
+.combo-meter strong { font-size:36px; }
+.feedback-rail { position:relative; min-height:92px; margin:-16px 0 12px; display:grid; align-items:center; }
+.feedback-rail .event-text { margin:0; padding:15px; font-size:11px; }
+.feedback-rail:has(.impact-card) .event-text { visibility:hidden; }
+.feedback-rail .impact-layer { inset:0; overflow:visible; }
+.feedback-rail .impact-card { width:100%; max-width:100%; min-width:0; min-height:84px; padding:10px 13px; gap:10px; border-radius:17px; backdrop-filter:blur(12px); box-shadow:0 12px 30px rgba(0,0,25,.3); }
+.feedback-rail .impact-mascot { width:60px; height:60px; }
+.feedback-rail .impact-copy strong { font-size:28px; }
+.feedback-rail .impact-copy>span { line-height:1.4; }
+.feedback-rail .impact-card>b { align-self:center; }
+.fever-gauge { margin:0 auto 14px; width:100%; }
+.game-controls { position:relative; left:auto; bottom:auto; transform:none; width:min(100%,560px); margin:15px auto 24px; }
+.result-overlay { bottom:160px; }
+.game-shell { min-height:0; align-items:stretch; }
+.arena { padding-bottom:20px; }
+.arena.fever .mascot-frame { box-shadow:0 0 0 7px rgba(255,192,81,.15),0 0 60px rgba(255,139,81,.3); }
+.impact-card.miss .impact-mascot,.impact-card.reject .impact-mascot { animation:mascot-hit .5s ease-out; }
+@media(max-width:1180px) and (min-width:981px) {
+  .game-shell { grid-template-columns:190px minmax(0,1fr) 210px; }
+  .arena { padding-inline:18px; }
+  .beat-zone { grid-template-columns:115px minmax(150px,1fr) 40px; gap:9px; }
+  .mascot-frame { width:115px; }
+  .turn-copy h1 span { width:132px; font-size:76px; }
+}
+@media(max-width:980px) {
+  .crew-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .crew-card { display:grid; grid-template-columns:42% 1fr; align-items:center; gap:12px; }
+}
+@media(max-width:760px) {
+  .hero-mascot { top:6%; left:21%; width:60%; max-width:310px; }
+  .hero-stage .demo-left { left:2%; top:18%; width:116px; }
+  .hero-stage .demo-right { right:2%; bottom:12%; width:131px; }
+  .hero-stage .demo-kung { width:80px; height:80px; top:71%; left:29%; }
+  .hero-stage .demo-kung span { font-size:26px; }
+  .hero-stage .demo-kung small { font-size:6px; }
+  .hero-stage .demo-kung b { font-size:10px; }
+  .crew-section { margin-top:36px; }
+  .crew-grid { gap:8px; }
+  .crew-card { display:block; padding:7px 12px 14px; border-radius:17px; }
+  .crew-card strong { font-size:20px; }
+  .crew-card small { font-size:9px; }
+  .crew-card em { font-size:9px; }
+  .crew-card>b { top:9px; right:9px; font-size:8px; }
+  .crew-selection { font-size:10px; }
+  .player-list { padding-right:0; }
+  .players-panel:has(#addBotButton:not([hidden])) .player-list { padding-right:108px; }
+  .game-shell { min-height:0; }
+  .arena { min-height:0; padding:13px 12px 17px; }
+  .beat-zone { min-height:277px; grid-template-columns:minmax(82px,.8fr) minmax(148px,1.3fr) 37px; gap:4px; }
+  .combatant-stage { min-height:246px; }
+  .mascot-frame { width:clamp(82px,24vw,116px); }
+  .combatant-name { width:100%; margin-top:-9px; }
+  .combatant-name strong { font-size:9px; }
+  .combatant-name small { font-size:6px; }
+  .combatant-stage .timer-ring { width:47px; height:47px; margin-top:11px; }
+  .combatant-stage .timer-ring::before { width:41px; }
+  .combatant-stage .timer-core strong { font-size:14px; }
+  .turn-copy>p { margin-bottom:20px; font-size:9px; }
+  .turn-copy h1 span { width:clamp(98px,29vw,132px); font-size:clamp(57px,17vw,79px); }
+  .turn-copy h1 { gap:15px; }
+  .turn-copy h1 i { width:auto; font-size:11px; }
+  .combo-meter strong { font-size:26px; }
+  .last-word { max-width:160px; font-size:8px; padding:5px 7px; }
+  .feedback-rail { min-height:82px; margin:0 0 9px; }
+  .feedback-rail .impact-card { min-height:77px; padding:9px; gap:8px; }
+  .feedback-rail .impact-mascot { width:46px; height:46px; }
+  .feedback-rail .impact-copy strong { font-size:23px; }
+  .feedback-rail .impact-copy small { font-size:6px; }
+  .feedback-rail .impact-copy>span { font-size:9px; }
+  .feedback-rail .impact-card>b { font-size:9px; }
+  .fever-gauge { width:100%; margin:0 auto 12px; }
+  .game-controls { width:calc(100% - 16px); margin:10px auto 16px; }
+  .result-overlay { bottom:144px; }
+  .result-mascot { width:137px; }
+  .result-overlay>strong { font-size:36px; }
+}
+@media(max-width:380px) {
+  .beat-zone { grid-template-columns:77px minmax(137px,1fr) 28px; }
+  .turn-copy h1 span { width:98px; font-size:57px; }
+  .mascot-frame { width:78px; }
+  .feedback-rail .impact-mascot { width:37px; height:37px; }
+  .feedback-rail .impact-copy strong { font-size:20px; }
+}
+@media(prefers-reduced-motion:reduce) { .hero-mascot,.crew-card { animation:none; transition:none; } }

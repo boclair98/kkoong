@@ -157,6 +157,8 @@ public class RoomService {
                 player.disconnectedAt = 0;
                 room.eventText = nickname + "님이 돌아왔어요";
             }
+            int mascot = message.path("mascot").asInt(-1);
+            if (mascot >= 0 && mascot < 4) player.mascot = mascot;
             room.updatedAt = System.currentTimeMillis();
             sessionLocations.put(session.getId(), new Location(room.code, playerId));
             send(session, Map.of("type", "joined", "roomCode", room.code, "playerId", playerId));
@@ -481,6 +483,7 @@ public class RoomService {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", player.id);
             item.put("nickname", player.nickname);
+            item.put("mascot", player.mascot);
             item.put("bot", player.bot);
             item.put("connected", player.connected);
             item.put("eliminated", player.eliminated);
@@ -497,6 +500,7 @@ public class RoomService {
         result.put("requiredSyllable", room.requiredSyllable);
         result.put("lastWord", room.lastWord);
         result.put("combo", room.combo);
+        result.put("feverTarget", 7);
         result.put("fever", room.combo >= 7);
         result.put("round", room.round);
         result.put("deadline", room.deadline);
