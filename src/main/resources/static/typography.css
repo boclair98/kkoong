@@ -1,0 +1,58 @@
+/* Shared type system: keep the cosmic UI crisp without changing layout or game behavior. */
+:root {
+  --font-ui: "Pretendard Variable", "Pretendard", "SUIT Variable", "SUIT", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+  --font-display: "Pretendard Variable", "Pretendard", "SUIT Variable", "SUIT", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", "Cascadia Code", "Consolas", ui-monospace, monospace;
+}
+
+html {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--font-ui);
+}
+
+body {
+  letter-spacing: -0.018em;
+  line-height: 1.5;
+}
+
+button,
+input,
+textarea,
+select {
+  letter-spacing: inherit;
+}
+
+/* Display copy gets a tighter rhythm; Korean body copy stays open and readable. */
+:is(h1, h2, h3, h4, .hero-copy h1, .turn-copy h1, .section-heading h2, .mode-card h3, .crew-card strong, .result-overlay > strong, .impact-copy strong) {
+  font-family: var(--font-display);
+  letter-spacing: -0.045em;
+}
+
+:is(.hero-description, .section-heading p, .mode-card p, .crew-selection, .crew-room-note, .input-hint, .event-text, .result-overlay p, .toast, .setup-dialog label, .setup-dialog legend) {
+  letter-spacing: -0.014em;
+}
+
+:is(.button, .icon-button, .mobile-room-button, .crew-filters button, .crew-random, .crew-pagination button, .difficulty-picker button, .reaction-button, .hint-button) {
+  letter-spacing: -0.022em;
+}
+
+:is(.timer-core strong, .room-code-box strong, .room-card strong, .player-score strong, .combatant-name small, .fever-gauge > div, .result-kicker, .impact-copy small) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  body { letter-spacing: -0.012em; }
+  :is(h1, h2, h3, h4, .hero-copy h1, .turn-copy h1, .section-heading h2, .mode-card h3, .crew-card strong, .result-overlay > strong, .impact-copy strong) {
+    letter-spacing: -0.04em;
+  }
+}
