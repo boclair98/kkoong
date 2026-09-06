@@ -10,7 +10,8 @@
   <meta property="og:type" content="website">
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/app.css?v=20260903-7">
+  <link rel="preload" as="image" href="/assets/orbit-arena-keyart.png">
+  <link rel="stylesheet" href="/app.css?v=20260906-9">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -19,59 +20,61 @@
   <header class="topbar">
     <button class="brand" type="button" data-go-home aria-label="세글자쿵 홈">
       <span class="brand-mark" aria-hidden="true"><i></i></span>
-      <span class="brand-name"><strong>KUNG ORBIT</strong><small>세글자쿵</small></span>
+      <span class="brand-name"><strong>세글자쿵!</strong><small>KUNG ORBIT</small></span>
     </button>
     <div class="top-actions">
-      <span class="live-pill"><i></i> LIVE <span id="onlineCount">0</span></span>
-      <button class="icon-button" id="soundButton" type="button" aria-label="소리 켜기" aria-pressed="false">SOUND</button>
+      <span class="live-pill"><i></i> 지금 <span id="onlineCount">0</span>명 플레이</span>
+      <button class="icon-button" id="soundButton" type="button" aria-label="소리 켜기" aria-pressed="false"><span aria-hidden="true">♪</span> 사운드</button>
     </div>
   </header>
 
   <main id="main">
     <section id="lobbyScreen" class="screen lobby-screen">
+      <section class="lobby-hero" aria-labelledby="heroTitle">
       <div class="hero-copy">
-        <p class="eyebrow"><span>LIVE WORD MISSION</span><span>STRICT DICTIONARY</span></p>
-        <h1>끝말이 궤도가<br>되는 순간.<br><em>세글자, 우주로.</em></h1>
-        <p class="hero-description">검증된 한국어 명사만 신호로 인정합니다.<br>링크 하나로 승선하고, 마지막 음절에서 다음 궤도를 여세요.</p>
+        <p class="eyebrow"><span>실시간 1–8인</span><span>사전 검증 매치</span></p>
+        <h1 id="heroTitle"><span>세 글자로</span><br><em>우주를 쿵!</em></h1>
+        <p class="hero-description">마지막 음절을 이어 단어 궤도를 완성하세요.<br>가짜 단어는 통과 불가—순발력과 어휘력으로 승부합니다.</p>
         <div class="hero-buttons">
-          <button class="button button-primary button-xl" id="quickButton" type="button">미션 바로 시작 <span>↗</span></button>
-          <button class="button button-ghost button-xl" id="createButton" type="button">비공개 세션 생성</button>
+          <button class="button button-primary button-xl" id="quickButton" type="button"><span class="play-symbol" aria-hidden="true">▶</span> 3초 만에 시작</button>
+          <button class="button button-ghost button-xl" id="createButton" type="button">친구 방 만들기</button>
         </div>
-        <p class="microcopy"><i></i> 31,000+ 사전 명사 · 가입 없음 · 구매 아이템 없음</p>
+        <p class="microcopy"><i></i> 가입 없음 <b>·</b> 완전 무료 <b>·</b> 광고와 결제 없음</p>
       </div>
 
       <div class="hero-stage" aria-label="세글자쿵 게임 규칙 미리보기">
         <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
-        <div class="stage-coord coord-a">37° 18' / ORBIT 03</div>
-        <div class="stage-coord coord-b">SIGNAL STABLE</div>
-        <div class="demo-card demo-left"><small>TRANSMISSION</small><strong>고구마</strong><span>NEXT / 마</span></div>
-        <div class="demo-kung"><span>쿵</span><b>07</b><small>COMBO</small></div>
-        <div class="demo-card demo-right"><small>RESPONSE</small><strong>마법사</strong><span>NEXT / 사</span></div>
-        <div class="float-tag tag-one">✓ DICT VERIFIED</div>
-        <div class="float-tag tag-two">FEVER ×2</div>
+        <div class="stage-coord coord-a">ROUND 03</div>
+        <div class="stage-coord coord-b">12초 안에 입력!</div>
+        <div class="demo-card demo-left"><small>방금 단어</small><strong>고구마</strong><span>다음 글자 · 마</span></div>
+        <div class="demo-kung"><small>7 COMBO</small><span>쿵!</span><b>+240</b></div>
+        <div class="demo-card demo-right"><small>완벽한 연결</small><strong>마법사</strong><span>다음 글자 · 사</span></div>
+        <div class="float-tag tag-one">✓ 사전 인증</div>
+        <div class="float-tag tag-two">🔥 피버 ×2</div>
       </div>
+      </section>
 
       <section class="join-strip" aria-labelledby="joinTitle">
-        <div><span class="section-kicker">MISSION ACCESS</span><h2 id="joinTitle">초대 코드로 궤도 합류</h2></div>
+        <div><span class="section-kicker">친구와 바로 시작</span><h2 id="joinTitle">받은 방 코드가 있나요?</h2></div>
         <form id="joinForm" class="code-form">
           <label class="sr-only" for="roomCodeInput">다섯 자리 방 코드</label>
           <input id="roomCodeInput" name="roomCode" maxlength="5" autocomplete="off" inputmode="text" placeholder="KUNG5" aria-describedby="codeHint">
-          <button class="button button-dark" type="submit">합류하기 <span>↗</span></button>
+          <button class="button button-dark" type="submit">입장하기 <span>→</span></button>
         </form>
         <small id="codeHint">영문·숫자 5자리</small>
       </section>
 
       <section class="dictionary-strip" aria-labelledby="dictionaryTitle">
         <div>
-          <span class="section-kicker">DICTIONARY SCANNER</span>
-          <h2 id="dictionaryTitle">전송 전, 단어를 확인하세요</h2>
-          <p>실전과 같은 서버 사전으로 미리 인증합니다. 띄어쓰기는 자동으로 정리돼요.</p>
+          <span class="section-kicker">공정한 승부의 시작</span>
+          <h2 id="dictionaryTitle">이 단어, 쿵 할 수 있을까?</h2>
+          <p>실전과 똑같은 서버 사전으로 미리 확인해 보세요.</p>
         </div>
         <form id="dictionaryForm" class="dictionary-form">
           <label class="sr-only" for="dictionaryInput">사전 단어 확인</label>
           <div class="dictionary-input-row">
             <input id="dictionaryInput" maxlength="4" autocomplete="off" inputmode="text" placeholder="예: 우주선">
-            <button class="button button-dark" type="submit">검증 <span>↗</span></button>
+            <button class="button button-dark" type="submit">단어 확인</button>
           </div>
           <output id="dictionaryResult" class="dictionary-result" aria-live="polite">검증할 단어를 입력하세요</output>
         </form>
@@ -79,61 +82,61 @@
 
       <section class="mode-section" aria-labelledby="modeTitle">
         <div class="section-heading">
-          <div><span class="section-kicker">SELECT TRAJECTORY</span><h2 id="modeTitle">오늘의 비행 궤도</h2></div>
-          <p>모든 모드는 사전 등재 명사만 인정합니다</p>
+          <div><span class="section-kicker">원하는 박자로 플레이</span><h2 id="modeTitle">어떤 대결을 시작할까요?</h2></div>
+          <p>카드를 누르면 바로 빠른 매칭이 시작돼요</p>
         </div>
         <div class="mode-grid">
           <button class="mode-card mode-classic" type="button" data-quick-mode="classic">
-            <span class="mode-icon">01</span><div><small>ORBIT / CLASSIC</small><h3>기본 궤도</h3><p>세 글자 · 12초 · 생명 2개</p></div><b>STANDARD</b>
+            <span class="mode-icon">◉</span><div><small>누구나 즐기는 정석</small><h3>클래식 쿵</h3><p>세 글자 · 12초 · 생명 2개</p></div><b>추천</b>
           </button>
           <button class="mode-card mode-speed" type="button" data-quick-mode="speed">
-            <span class="mode-icon">02</span><div><small>PULSE / SPEED</small><h3>펄스 항로</h3><p>세 글자 · 7초 · 고속 응답</p></div><b>EXPERT</b>
+            <span class="mode-icon">ϟ</span><div><small>생각보다 손이 먼저</small><h3>번개 쿵</h3><p>세 글자 · 7초 · 초고속 승부</p></div><b>짜릿</b>
           </button>
           <button class="mode-card mode-relay" type="button" data-quick-mode="relay">
-            <span class="mode-icon">03</span><div><small>DRIFT / RELAY</small><h3>자유 항로</h3><p>2~4글자 · 10초 · 유연한 탐사</p></div><b>OPEN</b>
+            <span class="mode-icon">∞</span><div><small>더 자유로운 단어 연결</small><h3>릴레이 쿵</h3><p>2~4글자 · 10초 · 자유 승부</p></div><b>자유</b>
           </button>
         </div>
       </section>
 
       <section class="rooms-section" aria-labelledby="roomsTitle">
-        <div class="section-heading"><div><span class="section-kicker">OPEN MISSIONS</span><h2 id="roomsTitle">공개 세션</h2></div><button class="text-button" id="refreshRooms" type="button">SCAN AGAIN ↻</button></div>
-        <div id="roomList" class="room-list"><div class="empty-room"><span>◌</span><p>열린 신호를 탐색하고 있습니다</p></div></div>
+        <div class="section-heading"><div><span class="section-kicker">지금 열려 있는 게임</span><h2 id="roomsTitle">바로 입장</h2></div><button class="text-button" id="refreshRooms" type="button">새로고침 ↻</button></div>
+        <div id="roomList" class="room-list"><div class="empty-room"><span>◌</span><p>입장할 수 있는 게임을 찾는 중이에요</p></div></div>
       </section>
 
       <section class="promise-strip" aria-label="게임 특징">
-        <div><strong>31K+</strong><span>한국어 사전 명사</span></div>
-        <div><strong>ZERO</strong><span>설치와 결제 없이</span></div>
-        <div><strong>FAIR</strong><span>구매 아이템 없는 경쟁</span></div>
-        <div><strong>RELINK</strong><span>연결 복구 후 이어서</span></div>
+        <div><strong>31,484</strong><span>검증된 한국어 명사</span></div>
+        <div><strong>0원</strong><span>설치와 결제 없이</span></div>
+        <div><strong>100%</strong><span>실력으로만 승부</span></div>
+        <div><strong>자동 복귀</strong><span>끊겨도 게임은 이어서</span></div>
       </section>
     </section>
 
     <section id="gameScreen" class="screen game-screen game-ui" hidden>
       <div class="game-shell">
         <aside class="players-panel panel">
-          <div class="panel-heading"><span>CREW MANIFEST</span><strong id="playerCount">0 / 8</strong></div>
+          <div class="panel-heading"><span>플레이어</span><strong id="playerCount">0 / 8</strong></div>
           <div id="playerList" class="player-list"></div>
           <button class="button button-soft full" id="addBotButton" type="button">+ 쿵봇 부르기</button>
         </aside>
 
         <section class="arena" aria-labelledby="arenaTitle">
           <div class="arena-top">
-            <div><span class="mode-dot"></span><b id="gameMode">기본 궤도</b><small id="gameRule">3글자 · 12초</small></div>
-            <div class="round-chip"><small>ROUND</small><strong id="roundCount">01</strong></div>
-            <button class="mobile-room-button" id="mobileShareButton" type="button"><small>ROOM</small> <b id="mobileRoomCode">-----</b> ↗</button>
+            <div><span class="mode-dot"></span><b id="gameMode">클래식 쿵</b><small id="gameRule">3글자 · 12초</small></div>
+            <div class="round-chip"><small>라운드</small><strong id="roundCount">01</strong></div>
+            <button class="mobile-room-button" id="mobileShareButton" type="button"><small>방 코드</small> <b id="mobileRoomCode">-----</b> ↗</button>
             <div id="connectionStatus" class="connection connected"><i></i> 연결됨</div>
           </div>
-          <div id="feverBanner" class="fever-banner" aria-live="polite">FEVER! 점수 2배 · 박자 UP</div>
+          <div id="feverBanner" class="fever-banner" aria-live="polite">🔥 피버 타임! 점수 2배</div>
           <div class="beat-zone">
             <div class="timer-ring" id="timerRing" style="--progress:1">
-              <div class="timer-core"><small>TIME</small><strong id="timerText">12.0</strong><span>SEC</span></div>
+              <div class="timer-core"><small>남은 시간</small><strong id="timerText">12.0</strong><span>초</span></div>
             </div>
             <div class="turn-copy">
               <p id="turnLabel">게임을 기다리는 중</p>
               <h1 id="arenaTitle"><span id="requiredSyllable">쿵</span><i>으로 시작!</i></h1>
               <div class="last-word" id="lastWord">방장이 시작하면 첫 글자가 공개돼요</div>
             </div>
-            <div class="combo-meter"><small>TEAM<br>COMBO</small><strong id="comboCount">0</strong><span>쿵</span></div>
+            <div class="combo-meter"><small>연속 성공</small><strong id="comboCount">0</strong><span>COMBO</span></div>
           </div>
           <p id="eventText" class="event-text" aria-live="polite">모두 준비되면 시작해요</p>
           <div class="word-entry">
@@ -142,11 +145,11 @@
               <input id="wordInput" autocomplete="off" maxlength="4" placeholder="단어를 입력하세요" disabled>
               <button class="button button-kung" type="submit" disabled>쿵!</button>
             </form>
-            <button class="hint-button" id="hintButton" type="button" disabled>HINT <span id="hintCount">3</span></button>
+            <button class="hint-button" id="hintButton" type="button" disabled><b>힌트</b><span id="hintCount">3</span></button>
           </div>
           <p class="input-hint" id="inputHint">내 차례가 오면 바로 입력할 수 있어요</p>
           <div class="reactions" aria-label="빠른 반응">
-            <span>같이 응원하기</span>
+            <span>같이 반응하기</span>
             <button type="button" data-reaction="👏">👏</button><button type="button" data-reaction="🔥">🔥</button>
             <button type="button" data-reaction="😱">😱</button><button type="button" data-reaction="ㅋㅋ">ㅋㅋ</button>
             <button type="button" data-reaction="💥">💥</button><button type="button" data-reaction="💡">💡</button>
@@ -155,37 +158,37 @@
         </section>
 
         <aside class="room-panel panel">
-          <div class="room-code-box"><small>MISSION ID</small><button id="roomCodeButton" type="button" title="초대 링크 복사"><strong id="roomCode">-----</strong><span>COPY</span></button></div>
-          <button class="button button-primary full" id="shareButton" type="button">승무원 초대 ↗</button>
-          <div class="mini-rules"><h3>MISSION PROTOCOL</h3><ol><li>끝 음절로 시작하기</li><li id="lengthRule">반드시 세 글자</li><li>사전 수록 명사만 인정</li><li>한 번 나온 단어는 금지</li></ol><p><i></i> 서버 사전 검증 활성화</p></div>
-          <div class="history-box"><div><h3>TRANSMISSION LOG</h3><span id="historyCount">0</span></div><ol id="wordHistory"><li class="history-empty">첫 신호를 기다립니다</li></ol></div>
+          <div class="room-code-box"><small>친구 초대 코드</small><button id="roomCodeButton" type="button" title="초대 링크 복사"><strong id="roomCode">-----</strong><span>복사</span></button></div>
+          <button class="button button-primary full" id="shareButton" type="button">친구 초대하기 ↗</button>
+          <div class="mini-rules"><h3>게임 규칙</h3><ol><li>끝 음절로 시작하기</li><li id="lengthRule">반드시 세 글자</li><li>사전 수록 명사만 인정</li><li>한 번 나온 단어는 금지</li></ol><p><i></i> 실시간 사전 판정 중</p></div>
+          <div class="history-box"><div><h3>단어 궤도</h3><span id="historyCount">0</span></div><ol id="wordHistory"><li class="history-empty">첫 단어를 기다려요</li></ol></div>
           <button class="text-button leave-button" id="leaveButton" type="button">방 나가기</button>
         </aside>
       </div>
       <div class="game-controls" id="gameControls">
-        <button class="button button-primary button-xl" id="startButton" type="button">궤도 진입 시작 ↗</button>
-        <button class="button button-primary button-xl" id="rematchButton" type="button" hidden>다음 궤도 시작 ↗</button>
-        <p id="waitingCopy">승무원을 기다리거나 쿵봇과 즉시 출발하세요</p>
+        <button class="button button-primary button-xl" id="startButton" type="button"><span class="play-symbol" aria-hidden="true">▶</span> 게임 시작!</button>
+        <button class="button button-primary button-xl" id="rematchButton" type="button" hidden>한 판 더!</button>
+        <p id="waitingCopy">친구를 기다리거나 쿵봇을 불러 바로 시작하세요</p>
       </div>
     </section>
   </main>
 
-  <footer><span>KUNG ORBIT / 세글자쿵</span><span>STRICT DICTIONARY · FREE · NO ADS · NO DONATION</span></footer>
+  <footer><span>세글자쿵! · KUNG ORBIT</span><span>무료 · 광고 없음 · 후원 기능 없음</span></footer>
 
   <dialog id="setupDialog" class="setup-dialog">
     <form method="dialog" id="setupForm">
       <button class="dialog-close" value="cancel" aria-label="닫기">×</button>
-      <span class="dialog-kicker">CREW REGISTRATION</span><h2>탐사 호출명을 입력하세요</h2>
+      <span class="dialog-kicker">게임 준비</span><h2>플레이할 이름을 정해주세요</h2>
       <label for="nicknameInput">별명</label><input id="nicknameInput" maxlength="10" autocomplete="nickname" placeholder="예: 리듬고수">
       <fieldset id="modePicker"><legend>게임 모드</legend>
         <label><input type="radio" name="mode" value="classic" checked><span><b>정통</b><small>3글자 · 12초</small></span></label>
         <label><input type="radio" name="mode" value="speed"><span><b>번개</b><small>3글자 · 7초</small></span></label>
         <label><input type="radio" name="mode" value="relay"><span><b>릴레이</b><small>2~4글자</small></span></label>
       </fieldset>
-      <button class="button button-primary button-xl full" id="setupSubmit" value="default">미션 합류 ↗</button>
+      <button class="button button-primary button-xl full" id="setupSubmit" value="default"><span class="play-symbol" aria-hidden="true">▶</span> 쿵 하러 가기</button>
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=20260903-7" defer></script>
+  <script src="/app.js?v=20260906-9" defer></script>
 </body>
 </html>
