@@ -21,6 +21,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.HashSet;
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -119,11 +120,82 @@ class GameWebSocketIntegrationTests {
             assertEquals(2, hostState.get("players").size());
             assertEquals(1, guestState.get("players").get(0).get("mascot").asInt());
             int fallback = guestState.get("players").get(1).get("mascot").asInt();
-            assertTrue(fallback >= 0 && fallback < 4);
+            assertTrue(fallback >= 0 && fallback < 24);
             assertEquals(fallback, hostState.get("players").get(1).get("mascot").asInt());
         } finally {
             host.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
             guest.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        }
+    }
+
+    @Test
+    void eightPeopleHaveUniqueCharactersAndReconnectKeepsTheAssignedOne() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        URI uri = URI.create("ws://localhost:" + port + "/ws/game");
+        var sockets = new ArrayList<WebSocket>();
+        try {
+            MessageListener hostMessages = new MessageListener();
+            WebSocket host = client.newWebSocketBuilder().buildAsync(uri, hostMessages).get(5, TimeUnit.SECONDS);
+            sockets.add(host);
+            host.sendText("{\"type\":\"create\",\"playerId\":\"guest-roster-host\",\"nickname\":\"크루방장\",\"mascot\":23}", true).join();
+            JsonNode joined = hostMessages.await("joined", json);
+            String code = joined.get("roomCode").asText();
+            assertEquals(23, joined.get("mascot").asInt());
+            hostMessages.awaitState("waiting", json);
+            int lastAssigned = -1;
+            JsonNode state = null;
+            for (int i = 1; i < 8; i++) {
+                MessageListener messages = new MessageListener();
+                WebSocket guest = client.newWebSocketBuilder().buildAsync(uri, messages).get(5, TimeUnit.SECONDS);
+                sockets.add(guest);
+                guest.sendText("{\"type\":\"join\",\"code\":\"" + code + "\",\"playerId\":\"guest-roster-" + i
+                        + "\",\"nickname\":\"크루" + i + "\",\"mascot\":23}", true).join();
+                JsonNode guestJoined = messages.await("joined", json);
+                lastAssigned = guestJoined.get("mascot").asInt();
+                assertTrue(guestJoined.get("mascotAdjusted").asBoolean());
+                state = messages.awaitState("waiting", json);
+                assertEquals(i + 1, state.get("players").size());
+            }
+            var unique = new HashSet<Integer>();
+            for (JsonNode player : state.get("players")) {
+                assertTrue(unique.add(player.get("mascot").asInt()));
+                assertTrue(player.get("mascot").asInt() >= 0 && player.get("mascot").asInt() < 24);
+            }
+            MessageListener reconnectMessages = new MessageListener();
+            WebSocket reconnect = client.newWebSocketBuilder().buildAsync(uri, reconnectMessages).get(5, TimeUnit.SECONDS);
+            sockets.add(reconnect);
+            reconnect.sendText("{\"type\":\"join\",\"code\":\"" + code
+                    + "\",\"playerId\":\"guest-roster-7\",\"nickname\":\"다시접속\",\"mascot\":23}", true).join();
+            assertEquals(lastAssigned, reconnectMessages.await("joined", json).get("mascot").asInt());
+            assertEquals(8, reconnectMessages.awaitState("waiting", json).get("players").size());
+        } finally {
+            for (WebSocket socket : sockets) socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        }
+    }
+
+    @Test
+    void sevenBotsAndTheHumanKeepDistinctAppearancesWhenGameStarts() throws Exception {
+        MessageListener messages = new MessageListener();
+        WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
+                .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), messages).get(5, TimeUnit.SECONDS);
+        try {
+            socket.sendText("{\"type\":\"create\",\"nickname\":\"봇크루검증\",\"mascot\":18}", true).join();
+            messages.await("joined", json); messages.awaitState("waiting", json);
+            JsonNode waiting = null;
+            for (int i = 0; i < 7; i++) {
+                socket.sendText("{\"type\":\"addBot\"}", true).join();
+                waiting = messages.awaitState("waiting", json);
+                assertEquals(i + 2, waiting.get("players").size());
+            }
+            var unique = new HashSet<Integer>();
+            for (JsonNode player : waiting.get("players")) assertTrue(unique.add(player.get("mascot").asInt()));
+            assertEquals(8, unique.size());
+            assertEquals(18, waiting.get("players").get(0).get("mascot").asInt());
+            socket.sendText("{\"type\":\"start\"}", true).join();
+            JsonNode playing = messages.awaitState("playing", json);
+            for (int i = 0; i < 8; i++) assertEquals(waiting.get("players").get(i).get("mascot").asInt(), playing.get("players").get(i).get("mascot").asInt());
+        } finally {
+            socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
         }
     }
 

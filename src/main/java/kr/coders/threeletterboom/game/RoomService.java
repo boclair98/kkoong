@@ -100,7 +100,7 @@ public class RoomService {
         }).sum();
         long playing = rooms.values().stream().filter(room -> room.phase == GameRoom.Phase.PLAYING).count();
         return Map.of("connectedPlayers", connected, "activeGames", playing, "openRooms", lobbyRooms().size(),
-                "dictionaryWords", dictionary.size());
+                "dictionaryWords", dictionary.size(), "mascotCount", MascotRoster.SIZE);
     }
 
     private void create(WebSocketSession session, JsonNode message) {
@@ -138,6 +138,7 @@ public class RoomService {
             if (room.phase == GameRoom.Phase.FINISHED) {
                 throw new GameProblem("GAME_FINISHED", "이 판은 끝났어요. 새 방에서 다시 만나요");
             }
+            int requestedMascot = message.path("mascot").asInt(-1);
             GameRoom.Player player = room.players.get(playerId);
             if (player == null) {
                 if (room.phase != GameRoom.Phase.WAITING) {
@@ -147,6 +148,7 @@ public class RoomService {
                     throw new GameProblem("ROOM_FULL", "방이 꽉 찼어요");
                 }
                 player = new GameRoom.Player(playerId, nickname, false, room.mode.lives(), session);
+                player.mascot = MascotRoster.choose(room, playerId, requestedMascot, random);
                 room.players.put(playerId, player);
                 if (room.hostId == null) room.hostId = playerId;
                 room.eventText = nickname + "님이 들어왔어요";
@@ -157,11 +159,11 @@ public class RoomService {
                 player.disconnectedAt = 0;
                 room.eventText = nickname + "님이 돌아왔어요";
             }
-            int mascot = message.path("mascot").asInt(-1);
-            if (mascot >= 0 && mascot < 4) player.mascot = mascot;
+            // Reconnect keeps the room assignment, even if the saved preference differs.
             room.updatedAt = System.currentTimeMillis();
             sessionLocations.put(session.getId(), new Location(room.code, playerId));
-            send(session, Map.of("type", "joined", "roomCode", room.code, "playerId", playerId));
+            send(session, Map.of("type", "joined", "roomCode", room.code, "playerId", playerId,
+                    "mascot", player.mascot, "mascotAdjusted", requestedMascot >= 0 && requestedMascot != player.mascot));
             broadcastState(room);
         }
     }
@@ -274,7 +276,9 @@ public class RoomService {
         long bots = room.players.values().stream().filter(player -> player.bot).count();
         String id = "bot-" + UUID.randomUUID();
         String name = bots == 0 ? "쿵봇" : "쿵봇 " + (bots + 1);
-        room.players.put(id, new GameRoom.Player(id, name, true, room.mode.lives(), null));
+        GameRoom.Player bot = new GameRoom.Player(id, name, true, room.mode.lives(), null);
+        bot.mascot = MascotRoster.choose(room, id, -1, random);
+        room.players.put(id, bot);
         room.eventText = name + "이 박자를 맞추러 왔어요";
     }
 

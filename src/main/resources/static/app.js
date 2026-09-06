@@ -20,14 +20,16 @@
     toast: $('#toast'), sound: $('#soundButton'), soundLabel: $('#soundLabel'), hint: $('#hintButton'), hintCount: $('#hintCount')
   };
   const modeLabels = {classic: '클래식 쿵', speed: '번개 쿵', relay: '릴레이 쿵'};
-  const crewNames = ['루미', '노바', '볼트', '네오'];
+  const crewCatalog = KungCrew;
+  const crewNames = crewCatalog.map(crew => crew.name);
   const savedMascot = Number(localStorage.getItem('segulja-mascot'));
 
   const app = {
     socket: null, connecting: null, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
     nickname: localStorage.getItem('segulja-nickname') || '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
-    mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < 4 ? savedMascot : 0,
+    mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
+    crewFilter: 'all', crewPage: 0, crewNotice: '',
     lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false,
     feedbackTimers: new Set(), lastFever: false, lastTurn: null
   };
@@ -87,6 +89,9 @@
       app.desiredRoom = message.roomCode;
       app.playerId = message.playerId;
       localStorage.setItem('segulja-player', app.playerId);
+      if (message.mascotAdjusted && crewCatalog[message.mascot]) {
+        app.crewNotice = `같은 크루가 이미 있어 이번 방에서는 ${crewNames[message.mascot]}와 함께해요`;
+      }
       wordEntry.reset();
       els.wordForm.classList.remove('invalid');
       els.inputHint.classList.remove('invalid');
@@ -100,6 +105,7 @@
       app.serverOffset = message.serverTime - Date.now();
       app.room = message;
       renderGame(message);
+      if (app.crewNotice) { toast(app.crewNotice); app.crewNotice = ''; }
       return;
     }
     if (message.type === 'reaction') {
@@ -140,7 +146,7 @@
 
   function goHome() {
     if (app.room) send({type: 'leave'});
-    app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastPlayAt = 0; app.lastTurn = null; app.lastFever = false;
+    app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastPlayAt = 0; app.lastTurn = null; app.lastFever = false; app.crewNotice = '';
     app.previousLives.clear(); resetFeedback(); els.result.hidden = true;
     wordEntry.update(null, app.playerId); els.wordForm.classList.remove('invalid'); updateInputViewport();
     app.socket?.close(); app.socket = null;
@@ -208,11 +214,13 @@
       card.className = `player-card${player.id === room.turnPlayerId ? ' active' : ''}${player.eliminated ? ' eliminated' : ''}${!player.connected ? ' disconnected' : ''}`;
       card.dataset.playerId = player.id;
       const avatar = document.createElement('span'); avatar.className = 'avatar mascot-sprite';
-      setMascotSprite(avatar, player.id); avatar.role = 'img'; avatar.ariaLabel = `${player.nickname}의 우주 캐릭터`;
+      setMascotSprite(avatar, player.id); avatar.role = 'img';
+      const crewName = crewNames[player.mascot] || '우주 크루';
+      avatar.ariaLabel = `${player.nickname}의 캐릭터 ${crewName}`; avatar.title = crewName;
       const info = document.createElement('span'); info.className = 'player-name';
       const name = document.createElement('b'); name.textContent = player.nickname;
       if (player.host) { const crown = document.createElement('i'); crown.className = 'host-crown'; crown.textContent = '★ 방장'; name.append(crown); }
-      const state = document.createElement('small'); state.textContent = player.eliminated ? '관전 중' : !player.connected ? '재접속 중' : player.bot ? '쿵봇' : player.streak ? `${player.streak}연속 성공` : '준비 완료';
+      const state = document.createElement('small'); state.textContent = player.eliminated ? '관전 중' : !player.connected ? '재접속 중' : player.bot ? `쿵봇 · ${crewName}` : player.streak ? `${player.streak}연속 · ${crewName}` : `${crewName} · 준비 완료`;
       info.append(name, state);
       const score = document.createElement('span'); score.className = 'player-score';
       const points = document.createElement('strong'); points.textContent = player.score.toLocaleString();
@@ -242,7 +250,7 @@
   function mascotIndex(playerId = '') {
     let hash = 0;
     for (const character of playerId) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
-    return Math.abs(hash) % 4;
+    return Math.abs(hash) % crewCatalog.length;
   }
 
   function setMascotSprite(element, playerId) {
@@ -252,9 +260,42 @@
   }
 
   function applyMascot(element, index) {
-    element.style.setProperty('--sprite-x', index % 2);
-    element.style.setProperty('--sprite-y', Math.floor(index / 2));
-    element.dataset.mascot = String(index);
+    const crew = crewCatalog[index] || crewCatalog[0];
+    element.style.backgroundImage = `url("${crew.image}")`;
+    element.style.backgroundSize = crew.atlas ? '200% 200%' : 'contain';
+    element.style.backgroundPosition = crew.atlas ? `${crew.id % 2 * 100}% ${Math.floor(crew.id / 2) * 100}%` : 'center';
+    element.style.backgroundRepeat = 'no-repeat';
+    element.dataset.mascot = String(crew.id);
+  }
+
+  function filteredCrew() {
+    return crewCatalog.filter(crew => app.crewFilter === 'all' || crew.group === app.crewFilter);
+  }
+
+  function renderCrewGrid() {
+    const choices = filteredCrew();
+    const pageCount = Math.max(1, Math.ceil(choices.length / 8));
+    app.crewPage = Math.max(0, Math.min(app.crewPage, pageCount - 1));
+    const cards = choices.slice(app.crewPage * 8, app.crewPage * 8 + 8).map(crew => {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'crew-card'; button.dataset.mascot = String(crew.id);
+      const portrait = document.createElement('span'); portrait.className = 'mascot-sprite'; portrait.ariaHidden = 'true';
+      applyMascot(portrait, crew.id);
+      const copy = document.createElement('span');
+      const role = document.createElement('small'); role.textContent = crew.role;
+      const name = document.createElement('strong'); name.textContent = crew.name;
+      const line = document.createElement('em'); line.textContent = crew.line;
+      copy.append(role, name, line);
+      const badge = document.createElement('b'); badge.textContent = '선택';
+      button.append(portrait, copy, badge);
+      return button;
+    });
+    $('#crewGrid').replaceChildren(...cards);
+    $$('[data-crew-filter]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.crewFilter === app.crewFilter)));
+    $('#crewPageLabel').textContent = `${app.crewPage + 1} / ${pageCount} · ${choices.length}종`;
+    $('#crewPrev').disabled = app.crewPage === 0;
+    $('#crewNext').disabled = app.crewPage === pageCount - 1;
+    renderCrewSelection();
   }
 
   function renderCrewSelection() {
@@ -773,11 +814,25 @@
     else if (app.sound) audioEngine.ctx.resume().then(() => { audioEngine.nextStepAt = audioEngine.ctx.currentTime + .05; }).catch(() => {});
   });
 
-  $$('.crew-card').forEach(button => button.addEventListener('click', () => {
+  $('#crewGrid').addEventListener('click', event => {
+    const button = event.target.closest('button[data-mascot]');
+    if (!button || !$('#crewGrid').contains(button)) return;
     app.mascot = Number(button.dataset.mascot);
     localStorage.setItem('segulja-mascot', String(app.mascot)); renderCrewSelection(); tone('reaction');
+  });
+  $$('[data-crew-filter]').forEach(button => button.addEventListener('click', () => {
+    app.crewFilter = button.dataset.crewFilter; app.crewPage = 0; renderCrewGrid();
   }));
-  renderCrewSelection();
+  $('#crewPrev').addEventListener('click', () => { app.crewPage--; renderCrewGrid(); });
+  $('#crewNext').addEventListener('click', () => { app.crewPage++; renderCrewGrid(); });
+  $('#crewRandom').addEventListener('click', () => {
+    const choices = filteredCrew().filter(crew => crew.id !== app.mascot);
+    app.mascot = choices[Math.floor(Math.random() * choices.length)].id;
+    app.crewPage = Math.floor(filteredCrew().findIndex(crew => crew.id === app.mascot) / 8);
+    localStorage.setItem('segulja-mascot', String(app.mascot)); renderCrewGrid(); tone('reaction');
+  });
+  app.crewPage = Math.floor(app.mascot / 8);
+  renderCrewGrid();
   loadLobby(); setInterval(() => { if (!app.room) loadLobby(); }, 5000); requestAnimationFrame(updateTimer);
   const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (initialRoom?.length === 5) useIdentityThen('join', {code: initialRoom});

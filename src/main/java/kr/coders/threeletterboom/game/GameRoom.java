@@ -54,7 +54,7 @@ final class GameRoom {
 
         Player(String id, String nickname, boolean bot, int lives, WebSocketSession session) {
             this.id = id;
-            this.mascot = Math.floorMod(id.hashCode(), 4);
+            this.mascot = Math.floorMod(id.hashCode(), MascotRoster.SIZE);
             this.nickname = nickname;
             this.bot = bot;
             this.lives = lives;

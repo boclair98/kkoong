@@ -12,9 +12,10 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" as="image" href="/assets/orbit-arena-keyart.png">
   <link rel="preload" as="image" href="/assets/cosmic-mascots-v1.png">
-  <link rel="stylesheet" href="/app.css?v=20260906-13">
-  <link rel="stylesheet" href="/crew.css?v=20260906-13">
-  <link rel="stylesheet" href="/game-input.css?v=20260906-13">
+  <link rel="stylesheet" href="/app.css?v=20260906-14">
+  <link rel="stylesheet" href="/crew.css?v=20260906-14">
+  <link rel="stylesheet" href="/crew-roster.css?v=20260906-14">
+  <link rel="stylesheet" href="/game-input.css?v=20260906-14">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -61,14 +62,24 @@
       </section>
 
       <section class="crew-section" aria-labelledby="crewTitle">
-        <div class="section-heading"><div><span class="section-kicker">나와 함께할 우주 크루</span><h2 id="crewTitle">오늘은 누구로 출격할까요?</h2></div><p>모든 캐릭터 무료 · 능력치는 모두 같아요</p></div>
-        <div class="crew-grid" aria-label="캐릭터 선택">
-          <button type="button" class="crew-card" data-mascot="0" aria-pressed="true"><span class="mascot-sprite" style="--sprite-x:0;--sprite-y:0" aria-hidden="true"></span><span><small>토끼 파일럿</small><strong>루미</strong><em>준비됐지? 같이 쿵!</em></span><b>선택됨</b></button>
-          <button type="button" class="crew-card" data-mascot="1" aria-pressed="false"><span class="mascot-sprite" style="--sprite-x:1;--sprite-y:0" aria-hidden="true"></span><span><small>여우 항해사</small><strong>노바</strong><em>다음 단어는 내 손안에.</em></span><b>선택</b></button>
-          <button type="button" class="crew-card" data-mascot="2" aria-pressed="false"><span class="mascot-sprite" style="--sprite-x:0;--sprite-y:1" aria-hidden="true"></span><span><small>곰 정비사</small><strong>볼트</strong><em>콤보 엔진, 가동!</em></span><b>선택</b></button>
-          <button type="button" class="crew-card" data-mascot="3" aria-pressed="false"><span class="mascot-sprite" style="--sprite-x:1;--sprite-y:1" aria-hidden="true"></span><span><small>고양이 정찰대</small><strong>네오</strong><em>한 박자 빠르게, 냥!</em></span><b>선택</b></button>
+        <div class="section-heading"><div><span class="section-kicker">24명의 우주 크루 · 모두 무료</span><h2 id="crewTitle">오늘은 누구로 출격할까요?</h2></div><p>취향대로 고르고, 나만의 크루로 쿵!</p></div>
+        <div class="crew-toolbar">
+          <div class="crew-filters" role="group" aria-label="캐릭터 분류">
+            <button type="button" data-crew-filter="all" aria-pressed="true">전체 <span>24</span></button>
+            <button type="button" data-crew-filter="explorers" aria-pressed="false">동물 탐사대 <span>12</span></button>
+            <button type="button" data-crew-filter="aliens" aria-pressed="false">외계 친구 <span>6</span></button>
+            <button type="button" data-crew-filter="robots" aria-pressed="false">로봇 팀 <span>6</span></button>
+          </div>
+          <button type="button" class="crew-random" id="crewRandom">↻ 랜덤 선택</button>
+        </div>
+        <div id="crewGrid" class="crew-grid crew-catalog-grid" aria-label="캐릭터 선택"></div>
+        <div class="crew-pagination" aria-label="캐릭터 목록 페이지">
+          <button type="button" id="crewPrev" aria-label="이전 캐릭터 페이지" disabled>←</button>
+          <span id="crewPageLabel" aria-live="polite">1 / 3 · 24종</span>
+          <button type="button" id="crewNext" aria-label="다음 캐릭터 페이지">→</button>
         </div>
         <p id="crewSelection" class="crew-selection" role="status">루미와 함께 출격해요</p>
+        <p class="crew-room-note">능력치는 모두 같아요. 같은 방에서는 사람과 봇 모두 겹치지 않게 배정해요.<br>먼저 선택된 크루가 있으면 이번 방에서만 다른 크루가 함께해요.</p>
       </section>
 
       <section class="join-strip" aria-labelledby="joinTitle">
@@ -230,7 +241,8 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/game-input.js?v=20260906-13" defer></script>
-  <script src="/app.js?v=20260906-13" defer></script>
+  <script src="/crew-catalog.js?v=20260906-14" defer></script>
+  <script src="/game-input.js?v=20260906-14" defer></script>
+  <script src="/app.js?v=20260906-14" defer></script>
 </body>
 </html>

@@ -6,6 +6,8 @@
 
 - 회원가입 없이 게스트로 빠른 시작, 방 생성, 5자리 코드/링크 초대
 - 최대 8명, 혼자 시작하면 자동으로 합류하는 `쿵봇`
+- AI 우주 캐릭터 24종 무료 선택: 동물 탐사대 12종, 외계 친구 6종, 로봇 팀 6종
+- 분류·페이지·랜덤 선택, 사람/봇 모두 방 안 중복 없는 외형 배정, 재접속 시 외형 유지
 - 기본 궤도(12초), 펄스 항로(7초), 자유 항로(2~4글자)
 - 서버 권위형 턴/타이머/점수/목숨 판정
 - 팀 콤보와 7콤보 피버(점수 2배, 제한 시간 단축)
@@ -62,7 +64,7 @@ macOS/Linux:
 입력 회귀 테스트(Node.js 내장 테스트 러너, 추가 패키지 불필요):
 
 ```sh
-node --test tools/game-input.test.cjs
+node --test tools/game-input.test.cjs tools/crew-catalog.test.cjs
 ```
 
 실제 서버 연결 브라우저 회귀 스크립트는 `tools/browser-input-smoke.js`입니다.
@@ -71,6 +73,11 @@ node --test tools/game-input.test.cjs
 브라우저 뷰포트 에뮬레이션은 실제 iOS/Android 키보드 검증을 대체하지 않습니다.
 실기기에서는 한글 조합, 키보드 보내기/쿵 버튼, 힌트 탭, 직접 키보드 닫기,
 가로/세로 회전, 앱 전환 후 복귀를 별도로 확인해야 합니다.
+
+캐릭터 갤러리·이미지 로딩·선택·8인 봇 방 검증은 로비에서
+`tools/browser-crew-smoke.js`를 같은 방식으로 실행합니다. 테스트 전용 방을 생성합니다.
+이미지 원본과 전체 생성 프롬프트는 `art-source/CREW_V2.md`에 정리했습니다.
+`tools/prepare-crew-assets.cjs`는 보존된 원본을 512px 투명 WebP로 인코딩합니다(Sharp 필요).
 
 ## 배포
 
