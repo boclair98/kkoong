@@ -199,6 +199,30 @@ class GameWebSocketIntegrationTests {
         }
     }
 
+    @Test
+    void hostCanTuneDifficultyAndRemoveBotsBeforeStarting() throws Exception {
+        MessageListener messages = new MessageListener();
+        WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
+                .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), messages).get(5, TimeUnit.SECONDS);
+        try {
+            socket.sendText("{\"type\":\"create\",\"nickname\":\"난이도검증\",\"difficulty\":\"beginner\"}", true).join();
+            messages.await("joined", json); messages.awaitState("waiting", json);
+            socket.sendText("{\"type\":\"addBot\"}", true).join();
+            JsonNode withBot = messages.awaitState("waiting", json);
+            assertEquals("beginner", withBot.get("difficulty").get("id").asText());
+            String botId = withBot.get("players").get(1).get("id").asText();
+            socket.sendText("{\"type\":\"setDifficulty\",\"difficulty\":\"advanced\"}", true).join();
+            JsonNode advanced = messages.awaitState("waiting", json);
+            assertEquals("advanced", advanced.get("difficulty").get("id").asText());
+            socket.sendText("{\"type\":\"removeBot\",\"botId\":\"" + botId + "\"}", true).join();
+            JsonNode removed = messages.awaitState("waiting", json);
+            assertEquals(1, removed.get("players").size());
+            assertEquals("advanced", removed.get("difficulty").get("id").asText());
+        } finally {
+            socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        }
+    }
+
     private static final class MessageListener implements WebSocket.Listener {
         private final BlockingQueue<String> messages = new LinkedBlockingQueue<>();
         private final StringBuilder partial = new StringBuilder();

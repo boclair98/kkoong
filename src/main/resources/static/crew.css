@@ -4,6 +4,19 @@
   background-size: 200% 200%;
   background-position: calc(var(--sprite-x,0)*100%) calc(var(--sprite-y,0)*100%);
 }
+.remove-bot { position:absolute; top:5px; right:5px; width:20px; height:20px; border:1px solid rgba(255,142,174,.35); border-radius:50%; color:#ff9bb5; background:rgba(86,20,53,.76); font-size:15px; line-height:1; cursor:pointer; }
+.player-card { position:relative; }
+.difficulty-picker { margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+.difficulty-picker>small { display:block; margin-bottom:7px; color:#8e9abb; font-size:9px; }
+.difficulty-picker>div { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+.difficulty-picker button { min-height:42px; padding:5px 2px; border:1px solid var(--line); border-radius:9px; color:#9ba8c5; background:#0e1130; cursor:pointer; }
+.difficulty-picker button b,.difficulty-picker button span { display:block; }
+.difficulty-picker button b { color:#e1e7ff; font-size:10px; }
+.difficulty-picker button span { margin-top:3px; font-size:7px; }
+.difficulty-picker button[aria-pressed="true"] { border-color:var(--cyan); background:#16344c; box-shadow:0 0 0 1px #67dcff33; }
+.difficulty-choices legend small { margin-left:4px; color:#7d88a8; font-size:8px; font-weight:500; }
+.difficulty-choices { margin-top:-8px; }
+.difficulty-choices span small { line-height:1.25; }
 .hero-mascot { position:absolute; z-index:2; width:clamp(240px,28vw,440px); aspect-ratio:1; top:20%; left:15%; filter:drop-shadow(0 20px 32px #080626); animation:mascot-bob 3s ease-in-out infinite; }
 .hero-stage .demo-kung { width:110px; height:110px; top:70%; left:27%; }
 .hero-stage .demo-kung span { font-size:35px; }
@@ -83,6 +96,7 @@
   .crew-card>b { top:9px; right:9px; font-size:8px; }
   .crew-selection { font-size:10px; }
   .player-list { padding-right:0; }
+  .difficulty-picker { margin-top:8px; }
   .players-panel:has(#addBotButton:not([hidden])) .player-list { padding-right:108px; }
   .game-shell { min-height:0; }
   .arena { min-height:0; padding:13px 12px 17px; }

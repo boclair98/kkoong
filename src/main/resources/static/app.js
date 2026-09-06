@@ -17,7 +17,8 @@
     reactionLayer: $('#reactionLayer'), impactLayer: $('#impactLayer'), combatantStage: $('#combatantStage'), activeMascot: $('#activeMascot'),
     activePilot: $('#activePilot'), mascotMood: $('#mascotMood'), feverGaugeFill: $('#feverGaugeFill'), feverGaugeLabel: $('#feverGaugeLabel'),
     result: $('#resultOverlay'), resultKicker: $('#resultKicker'), resultMascot: $('#resultMascot'), resultWinner: $('#resultWinner'), resultSummary: $('#resultSummary'),
-    toast: $('#toast'), sound: $('#soundButton'), soundLabel: $('#soundLabel'), hint: $('#hintButton'), hintCount: $('#hintCount')
+    toast: $('#toast'), sound: $('#soundButton'), soundLabel: $('#soundLabel'), hint: $('#hintButton'), hintCount: $('#hintCount'),
+    difficultyPicker: $('#difficultyPicker'), setupDifficultyPicker: $('#setupDifficultyPicker')
   };
   const modeLabels = {classic: '클래식 쿵', speed: '번개 쿵', relay: '릴레이 쿵'};
   const crewCatalog = KungCrew;
@@ -27,7 +28,7 @@
   const app = {
     socket: null, connecting: null, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
     nickname: localStorage.getItem('segulja-nickname') || '', desiredRoom: null, setupIntent: null, pendingCode: '',
-    pendingMode: 'classic', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
+    pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
     crewFilter: 'all', crewPage: 0, crewNotice: '',
     lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false,
@@ -160,7 +161,8 @@
     els.roomCode.textContent = room.roomCode;
     els.mobileRoomCode.textContent = room.roomCode;
     els.gameMode.textContent = modeLabels[room.mode.id] || room.mode.label;
-    els.gameRule.textContent = `${room.mode.length} · ${room.mode.turnSeconds}초`;
+    const currentSeconds = room.mode.currentTurnSeconds || room.mode.turnSeconds;
+    els.gameRule.textContent = `${room.mode.length} · ${currentSeconds}초${room.mode.tempoStage ? ` · 속도 ${room.mode.tempoStage + 1}` : ''}`;
     els.round.textContent = String(room.round || 1).padStart(2, '0');
     els.lengthRule.textContent = room.mode.length === '3글자' ? '반드시 세 글자' : `${room.mode.length} 단어`;
     els.playerCount.textContent = `${room.players.length} / 8`;
@@ -196,6 +198,10 @@
     els.start.hidden = room.phase !== 'waiting' || !isHost;
     els.rematch.hidden = room.phase !== 'finished' || !isHost;
     els.addBot.hidden = room.phase !== 'waiting' || !isHost || room.players.length >= 8;
+    if (els.difficultyPicker) {
+      els.difficultyPicker.hidden = room.phase !== 'waiting' || !isHost;
+      $$('[data-difficulty]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.difficulty === room.difficulty?.id)));
+    }
     els.waitingCopy.hidden = room.phase === 'playing';
     els.controls.hidden = room.phase === 'playing' || (!isHost && room.phase !== 'waiting');
     processMatchFeedback(room);
@@ -209,6 +215,7 @@
   }
 
   function renderPlayers(room) {
+    const isHostWaiting = room.phase === 'waiting' && room.hostId === app.playerId;
     els.playerList.replaceChildren(...room.players.map((player, index) => {
       const card = document.createElement('div');
       card.className = `player-card${player.id === room.turnPlayerId ? ' active' : ''}${player.eliminated ? ' eliminated' : ''}${!player.connected ? ' disconnected' : ''}`;
@@ -227,7 +234,12 @@
       const hearts = document.createElement('span'); hearts.className = 'hearts'; hearts.textContent = '♥'.repeat(Math.max(0, player.lives)) + '♡'.repeat(Math.max(0, 2 - player.lives));
       const lifeBar = document.createElement('span'); lifeBar.className = 'life-bar';
       const lifeFill = document.createElement('i'); lifeFill.style.width = `${Math.min(100, Math.max(0, player.lives) / 2 * 100)}%`;
-      lifeBar.append(lifeFill); score.append(points, hearts, lifeBar); card.append(avatar, info, score); return card;
+      lifeBar.append(lifeFill); score.append(points, hearts, lifeBar); card.append(avatar, info, score);
+      if (isHostWaiting && player.bot) {
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove-bot';
+        remove.dataset.removeBot = player.id; remove.setAttribute('aria-label', `${player.nickname} 삭제`); remove.textContent = '×'; card.append(remove);
+      }
+      return card;
     }));
   }
 
@@ -457,7 +469,7 @@
       els.timerRing.style.setProperty('--progress', 1);
       els.combatantStage.classList.remove('urgent');
     } else {
-      const total = Math.max(5, room.mode.turnSeconds - (room.fever ? 2 : 0)) * 1000;
+      const total = Math.max(5, room.mode.currentTurnSeconds || room.mode.turnSeconds) * 1000;
       const remaining = Math.max(0, room.deadline - (Date.now() + app.serverOffset));
       els.timerText.textContent = (remaining / 1000).toFixed(1);
       const progress = Math.min(1, remaining / total);
@@ -493,6 +505,11 @@
     els.nickname.value = app.nickname;
     els.modePicker.hidden = intent === 'join';
     const radio = $(`input[name="mode"][value="${mode}"]`, els.modePicker); if (radio) radio.checked = true;
+    if (els.setupDifficultyPicker) {
+      els.setupDifficultyPicker.hidden = intent === 'join';
+      const difficulty = $(`input[name="difficulty"][value="${app.pendingDifficulty}"]`, els.setupDifficultyPicker);
+      if (difficulty) difficulty.checked = true;
+    }
     els.dialog.showModal(); setTimeout(() => els.nickname.focus(), 50);
   }
 
@@ -503,7 +520,7 @@
 
   function launch(intent, options = {}) {
     const mode = options.mode || app.pendingMode || 'classic';
-    const identity = {nickname: app.nickname, playerId: app.playerId, mascot: app.mascot};
+    const identity = {nickname: app.nickname, playerId: app.playerId, mascot: app.mascot, difficulty: app.pendingDifficulty};
     if (intent === 'create') send({type: 'create', mode, ...identity});
     else if (intent === 'quick') send({type: 'quickJoin', mode, ...identity});
     else if (intent === 'join') send({type: 'join', code: options.code || app.pendingCode, ...identity});
@@ -703,6 +720,8 @@
     app.nickname = els.nickname.value.trim().replace(/[^가-힣A-Za-z0-9 ]/g, '').slice(0, 10) || `익명쿵${100 + Math.floor(Math.random() * 900)}`;
     localStorage.setItem('segulja-nickname', app.nickname);
     app.pendingMode = $('input[name="mode"]:checked', els.modePicker)?.value || app.pendingMode;
+    app.pendingDifficulty = $('input[name="difficulty"]:checked', els.setupDifficultyPicker)?.value || app.pendingDifficulty;
+    localStorage.setItem('segulja-difficulty', app.pendingDifficulty);
     els.dialog.close(); launch(app.setupIntent, {mode: app.pendingMode, code: app.pendingCode});
   });
   function syncInputControls() {
@@ -748,6 +767,15 @@
   els.start.addEventListener('click', () => send({type: 'start'}));
   els.rematch.addEventListener('click', () => send({type: 'rematch'}));
   els.addBot.addEventListener('click', () => send({type: 'addBot'}));
+  els.playerList.addEventListener('click', event => {
+    const remove = event.target.closest('[data-remove-bot]');
+    if (remove) send({type: 'removeBot', botId: remove.dataset.removeBot});
+  });
+  $$('[data-difficulty]').forEach(button => button.addEventListener('click', () => {
+    app.pendingDifficulty = button.dataset.difficulty;
+    localStorage.setItem('segulja-difficulty', app.pendingDifficulty);
+    send({type: 'setDifficulty', difficulty: app.pendingDifficulty});
+  }));
   $('#leaveButton').addEventListener('click', goHome);
   $$('[data-go-home]').forEach(button => button.addEventListener('click', goHome));
   $$('.reactions button').forEach(button => button.addEventListener('click', () => send({type: 'react', emoji: button.dataset.reaction})));

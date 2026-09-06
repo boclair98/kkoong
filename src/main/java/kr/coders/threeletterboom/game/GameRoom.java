@@ -15,6 +15,7 @@ final class GameRoom {
 
     final String code;
     final GameMode mode;
+    GameDifficulty difficulty;
     final Map<String, Player> players = new LinkedHashMap<>();
     final Set<String> usedWords = new LinkedHashSet<>();
     final List<WordPlay> history = new ArrayList<>();
@@ -26,6 +27,8 @@ final class GameRoom {
     int round;
     long turnStartedAt;
     long deadline;
+    long botActionAt;
+    int turnCount;
     long updatedAt = System.currentTimeMillis();
     String requiredSyllable;
     String lastWord;
@@ -33,8 +36,13 @@ final class GameRoom {
     String eventText = "방이 만들어졌어요";
 
     GameRoom(String code, GameMode mode) {
+        this(code, mode, GameDifficulty.BEGINNER);
+    }
+
+    GameRoom(String code, GameMode mode, GameDifficulty difficulty) {
         this.code = code;
         this.mode = mode;
+        this.difficulty = difficulty;
     }
 
     static final class Player {

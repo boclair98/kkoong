@@ -58,6 +58,8 @@ public class RoomService {
                 case "hint" -> withPlayer(session, this::requestHint);
                 case "react" -> withPlayer(session, (room, player) -> react(room, player, text(message, "emoji")));
                 case "addBot" -> withPlayer(session, this::addBot);
+                case "removeBot" -> withPlayer(session, (room, player) -> removeBot(room, player, text(message, "botId")));
+                case "setDifficulty" -> withPlayer(session, (room, player) -> setDifficulty(room, player, text(message, "difficulty")));
                 case "rematch" -> withPlayer(session, (room, player) -> rematch(room, player));
                 case "leave" -> leave(session, true);
                 case "ping" -> send(session, Map.of("type", "pong", "serverTime", System.currentTimeMillis()));
@@ -106,7 +108,7 @@ public class RoomService {
     private void create(WebSocketSession session, JsonNode message) {
         GameMode mode = GameMode.from(text(message, "mode"));
         String code = newCode();
-        GameRoom room = new GameRoom(code, mode);
+        GameRoom room = new GameRoom(code, mode, GameDifficulty.from(text(message, "difficulty")));
         rooms.put(code, room);
         joinRoom(session, message, room);
     }
@@ -124,7 +126,7 @@ public class RoomService {
                 .filter(candidate -> candidate.mode == mode && candidate.phase == GameRoom.Phase.WAITING)
                 .filter(candidate -> candidate.players.size() < MAX_PLAYERS)
                 .findFirst().orElseGet(() -> {
-                    GameRoom created = new GameRoom(newCode(), mode);
+                    GameRoom created = new GameRoom(newCode(), mode, GameDifficulty.from(text(message, "difficulty")));
                     rooms.put(created.code, created);
                     return created;
                 });
@@ -190,6 +192,7 @@ public class RoomService {
         room.history.clear();
         room.combo = 0;
         room.round++;
+        room.turnCount = 0;
         room.lastWord = null;
         room.winnerId = null;
         room.requiredSyllable = dictionary.pickStarter(room.mode);
@@ -282,6 +285,31 @@ public class RoomService {
         room.eventText = name + "이 박자를 맞추러 왔어요";
     }
 
+    private void removeBot(GameRoom room, GameRoom.Player requester, String botId) {
+        synchronized (room) {
+            requireHost(room, requester);
+            if (room.phase != GameRoom.Phase.WAITING) throw new GameProblem("GAME_STARTED", "게임 시작 전 대기 중에만 쿵봇을 뺄 수 있어요");
+            GameRoom.Player bot = room.players.get(botId);
+            if (bot == null || !bot.bot) throw new GameProblem("BOT_NOT_FOUND", "뺄 쿵봇을 찾지 못했어요");
+            room.players.remove(botId);
+            room.eventText = bot.nickname + "이 대기실에서 나갔어요";
+            room.updatedAt = System.currentTimeMillis();
+            broadcastState(room);
+        }
+    }
+
+    private void setDifficulty(GameRoom room, GameRoom.Player requester, String value) {
+        synchronized (room) {
+            requireHost(room, requester);
+            if (room.phase != GameRoom.Phase.WAITING) throw new GameProblem("GAME_STARTED", "게임 시작 전 대기 중에만 난이도를 바꿀 수 있어요");
+            GameDifficulty next = GameDifficulty.from(value);
+            room.difficulty = next;
+            room.eventText = "AI 난이도: " + next.label() + " · " + next.description();
+            room.updatedAt = System.currentTimeMillis();
+            broadcastState(room);
+        }
+    }
+
     private void react(GameRoom room, GameRoom.Player player, String emoji) {
         if (!REACTIONS.contains(emoji)) throw new GameProblem("BAD_REACTION", "지원하지 않는 반응이에요");
         long now = System.currentTimeMillis();
@@ -368,7 +396,12 @@ public class RoomService {
             broadcastState(room);
             return;
         }
-        if (current.bot && now - room.turnStartedAt > 900 + random.nextInt(900)) {
+        if (current.bot && now >= room.botActionAt) {
+            if (room.difficulty.makesMistake(random)) {
+                timeout(room, current, current.nickname + "이 단어를 놓쳤어요");
+                broadcastState(room);
+                return;
+            }
             String word = dictionary.pick(room.requiredSyllable, room.mode, room.usedWords);
             if (word == null) botRhythmPass(room, current);
             else acceptWord(room, current, word);
@@ -432,9 +465,12 @@ public class RoomService {
 
     private void startTurn(GameRoom room) {
         long now = System.currentTimeMillis();
-        int feverCut = room.combo >= 7 ? 2 : 0;
+        room.turnCount++;
+        int turnSeconds = room.mode.turnSecondsForTurn(room.turnCount, room.combo >= 7);
         room.turnStartedAt = now;
-        room.deadline = now + Math.max(5, room.mode.turnSeconds() - feverCut) * 1000L;
+        room.deadline = now + turnSeconds * 1000L;
+        GameRoom.Player current = currentPlayer(room);
+        room.botActionAt = current != null && current.bot ? now + room.difficulty.thinkMillis(random) : 0;
         room.updatedAt = now;
     }
 
@@ -481,8 +517,13 @@ public class RoomService {
         result.put("roomCode", room.code);
         result.put("phase", room.phase.name().toLowerCase(Locale.ROOT));
         result.put("hostId", room.hostId);
+        int effectiveSeconds = room.phase == GameRoom.Phase.PLAYING
+                ? room.mode.turnSecondsForTurn(room.turnCount, room.combo >= 7)
+                : room.mode.turnSeconds();
         result.put("mode", Map.of("id", room.mode.id(), "label", room.mode.label(), "length", room.mode.lengthText(),
-                "turnSeconds", room.mode.turnSeconds()));
+                "turnSeconds", room.mode.turnSeconds(), "currentTurnSeconds", effectiveSeconds,
+                "tempoStage", Math.max(0, (room.turnCount - 1) / 3)));
+        result.put("difficulty", Map.of("id", room.difficulty.id(), "label", room.difficulty.label(), "description", room.difficulty.description()));
         result.put("players", room.players.values().stream().map(player -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", player.id);
@@ -507,6 +548,7 @@ public class RoomService {
         result.put("feverTarget", 7);
         result.put("fever", room.combo >= 7);
         result.put("round", room.round);
+        result.put("turnCount", room.turnCount);
         result.put("deadline", room.deadline);
         result.put("winnerId", room.winnerId);
         result.put("eventText", room.eventText);

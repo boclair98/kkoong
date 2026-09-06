@@ -12,10 +12,10 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" as="image" href="/assets/orbit-arena-keyart.png">
   <link rel="preload" as="image" href="/assets/cosmic-mascots-v1.png">
-  <link rel="stylesheet" href="/app.css?v=20260906-14">
-  <link rel="stylesheet" href="/crew.css?v=20260906-14">
-  <link rel="stylesheet" href="/crew-roster.css?v=20260906-14">
-  <link rel="stylesheet" href="/game-input.css?v=20260906-14">
+  <link rel="stylesheet" href="/app.css?v=20260906-15">
+  <link rel="stylesheet" href="/crew.css?v=20260906-15">
+  <link rel="stylesheet" href="/crew-roster.css?v=20260906-15">
+  <link rel="stylesheet" href="/game-input.css?v=20260906-15">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -145,6 +145,10 @@
           <div class="panel-heading"><span>플레이어</span><strong id="playerCount">0 / 8</strong></div>
           <div id="playerList" class="player-list"></div>
           <button class="button button-soft full" id="addBotButton" type="button">+ 쿵봇 부르기</button>
+          <div id="difficultyPicker" class="difficulty-picker" role="group" aria-label="AI 난이도">
+            <small>AI 난이도 · 방장 설정</small>
+            <div><button type="button" data-difficulty="beginner" aria-pressed="true"><b>초급</b><span>처음이라면</span></button><button type="button" data-difficulty="intermediate" aria-pressed="false"><b>중급</b><span>적당하게</span></button><button type="button" data-difficulty="advanced" aria-pressed="false"><b>고급</b><span>빠르게</span></button></div>
+          </div>
         </aside>
 
         <section class="arena" aria-labelledby="arenaTitle">
@@ -237,12 +241,17 @@
         <label><input type="radio" name="mode" value="speed"><span><b>번개</b><small>3글자 · 7초</small></span></label>
         <label><input type="radio" name="mode" value="relay"><span><b>릴레이</b><small>2~4글자</small></span></label>
       </fieldset>
+      <fieldset id="setupDifficultyPicker" class="difficulty-choices"><legend>AI 난이도 <small>처음에는 초급을 추천해요</small></legend>
+        <label><input type="radio" name="difficulty" value="beginner" checked><span><b>초급</b><small>천천히 · 실수 있음</small></span></label>
+        <label><input type="radio" name="difficulty" value="intermediate"><span><b>중급</b><small>적당한 승부</small></span></label>
+        <label><input type="radio" name="difficulty" value="advanced"><span><b>고급</b><small>빠르고 강함</small></span></label>
+      </fieldset>
       <button class="button button-primary button-xl full" id="setupSubmit" value="default"><span class="play-symbol" aria-hidden="true">▶</span> 쿵 하러 가기</button>
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/crew-catalog.js?v=20260906-14" defer></script>
-  <script src="/game-input.js?v=20260906-14" defer></script>
-  <script src="/app.js?v=20260906-14" defer></script>
+  <script src="/crew-catalog.js?v=20260906-15" defer></script>
+  <script src="/game-input.js?v=20260906-15" defer></script>
+  <script src="/app.js?v=20260906-15" defer></script>
 </body>
 </html>

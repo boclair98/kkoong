@@ -31,6 +31,10 @@ public enum GameMode {
     public int maxLength() { return maxLength; }
     public String lengthText() { return maxLengthText; }
     public int turnSeconds() { return turnSeconds; }
+    public int turnSecondsForTurn(int turnCount, boolean fever) {
+        int tempoCut = Math.min(Math.max(0, turnSeconds - 5), Math.max(0, (Math.max(1, turnCount) - 1) / 3));
+        return Math.max(5, turnSeconds - tempoCut - (fever ? 2 : 0));
+    }
     public int lives() { return lives; }
 
     public static GameMode from(String value) {
