@@ -1,6 +1,21 @@
 HELP.md
 target/
 .coders/
+
+# Local credentials, environment files, logs, and private build artifacts
+.env
+.env.*
+!.env.example
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

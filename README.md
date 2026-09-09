@@ -91,6 +91,56 @@ docker build -t three-letter-boom .
 docker run --rm -p 8080:8080 three-letter-boom
 ```
 
+### 공개 저장소와 운영 배포
+
+- 운영 URL: https://segulja-kkung.coders.kr
+- canonical upstream: https://github.com/boclair98/three-letter-boom
+- organization fork: https://github.com/coders-kr/three-letter-boom
+- Coders.kr 배포 소스: canonical upstream의 기본 브랜치 `main`
+
+공개 저장소를 갱신할 때는 로컬 검증과 커밋 후 canonical upstream에 먼저 push하고,
+`coders-kr` fork를 upstream에서 동기화한 뒤 Coders.kr에서 canonical 저장소를
+재배포합니다. 두 저장소의 기본 브랜치 전체 커밋 SHA가 같을 때만 동기화가 끝난
+것으로 봅니다.
+
+```sh
+git push origin main
+gh repo sync coders-kr/three-letter-boom -b main
+```
+
+Coders.kr 배포는 `coders.yaml`과 Dockerfile을 사용하며, 배포 후 `/actuator/health`,
+`/api/lobby`, production URL을 확인합니다. 배포 토큰은 저장소에 넣지 않고
+로컬 `.coders/token` 또는 승인된 비밀 저장소에서만 읽습니다.
+
+### 프로젝트 구조
+
+```text
+src/main/java/.../game/       서버 권위형 게임 상태·사전·봇 난이도
+src/main/java/.../web/        REST, WebSocket, 정적 홈 컨트롤러
+src/main/resources/static/    의존성 없는 게임 UI, CSS, 캐릭터 자산
+src/main/resources/words-ko.txt  검증된 한국어 명사 데이터
+src/test/                     Spring/WebSocket/사전/난이도 테스트
+tools/                        브라우저 스모크와 사전·자산 도구
+```
+
+### 환경 변수와 개인정보
+
+현재 필수 환경 변수와 외부 API 키는 없습니다. 서버는 영속적인 회원·결제·게임
+기록을 저장하지 않으며, 방 상태는 메모리에만 존재하고 재배포 또는 만료 시
+정리됩니다. 로컬 자격 증명, 환경 파일, 로그, 데이터베이스 파일, 개인 키는
+`.gitignore`로 공개 저장소에서 제외합니다.
+
+### 공개 전 검증 체크리스트
+
+- `./mvnw test` 및 필요한 Node 회귀 테스트 통과
+- 360×800, 390×844, 768×1024, 1440×900에서 가로 넘침·겹침·잘림 확인
+- 한글 IME 입력, 방 생성/입장, 봇 추가·삭제·난이도, 사전 거절/성공 확인
+- 키보드 포커스, 라벨, 터치 영역, 콘솔 오류와 실패 요청 확인
+- `/actuator/health`가 `UP`이고 production URL이 HTTP 200인지 확인
+
+실제 제출·결제·후원·공식 서비스 연동은 제공하지 않습니다. 게임 내 단어 판정과
+점수는 서버가 검증하며, 외부 사전 API 응답을 만들어내지 않습니다.
+
 ## 운영 원칙
 
 - 인메모리 방 상태라 재배포 시 진행 중인 판은 초기화됩니다. 클라이언트는 끊김을 정상 상황으로 보고 자동 재접속합니다.
