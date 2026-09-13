@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/crew-roster.css?v=20260906-16">
   <link rel="stylesheet" href="/game-input.css?v=20260906-16">
   <link rel="stylesheet" href="/typography.css?v=20260906-16">
+  <link rel="stylesheet" href="/progression.css?v=20260914-01">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -81,6 +82,41 @@
         </div>
         <p id="crewSelection" class="crew-selection" role="status">루미와 함께 출격해요</p>
         <p class="crew-room-note">능력치는 모두 같아요. 같은 방에서는 사람과 봇 모두 겹치지 않게 배정해요.<br>먼저 선택된 크루가 있으면 이번 방에서만 다른 크루가 함께해요.</p>
+      </section>
+
+      <section class="passport-section" aria-labelledby="passportTitle">
+        <div class="section-heading passport-heading">
+          <div><span class="section-kicker">무료 플레이 성장 기록</span><h2 id="passportTitle">오늘의 궤도를 채워보세요</h2></div>
+          <span class="season-chip"><i></i> SEASON 01 · 궤도 개척자</span>
+        </div>
+        <div class="passport-grid">
+          <article class="passport-card passport-level-card">
+            <div class="passport-card-top">
+              <div class="passport-orb" aria-hidden="true"><span id="passportLevel">LV 1</span><i></i></div>
+              <div class="passport-copy"><small>ORBIT PASSPORT</small><h3>나의 우주 기록</h3><p>플레이할수록 다음 항로가 열려요.</p></div>
+              <span class="passport-fragments"><b id="passportFragments">0</b><small>✦ 조각</small></span>
+            </div>
+            <div class="passport-xp" aria-label="레벨 경험치">
+              <div><span id="passportXp">0 / 100 XP</span><b id="passportXpLabel">다음 레벨까지 100 XP</b></div>
+              <span class="passport-xp-track"><i id="passportXpFill"></i></span>
+            </div>
+            <div class="passport-stats" aria-label="플레이 통계">
+              <div><strong id="passportMatches">0</strong><span>플레이</span></div>
+              <div><strong id="passportWins">0</strong><span>승리</span></div>
+              <div><strong id="passportWinRate">0%</strong><span>승률</span></div>
+              <div><strong id="passportStreak">0일</strong><span>연속 출격</span></div>
+            </div>
+          </article>
+          <article class="passport-card mission-card">
+            <div class="mission-heading"><div><small>DAILY FLIGHT PLAN</small><h3>오늘의 임무</h3></div><b id="passportMissionMeta">0 / 3 완료</b></div>
+            <div id="missionList" class="mission-list" aria-live="polite"></div>
+            <p class="passport-note"><span>✦</span> 보상은 게임 플레이로만 얻어요. 지금은 모든 항로가 무료입니다.</p>
+          </article>
+        </div>
+        <div class="badge-rail">
+          <div class="badge-rail-title"><span class="section-kicker">COLLECTED SIGNALS</span><strong>나의 배지</strong><small id="passportBadgeMeta">0 / 4</small></div>
+          <div id="badgeList" class="badge-list" aria-label="획득 배지"></div>
+        </div>
       </section>
 
       <section class="join-strip" aria-labelledby="joinTitle">
@@ -253,6 +289,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/crew-catalog.js?v=20260906-16" defer></script>
   <script src="/game-input.js?v=20260906-16" defer></script>
-  <script src="/app.js?v=20260906-16" defer></script>
+  <script src="/progression.js?v=20260914-01" defer></script>
+  <script src="/app.js?v=20260914-01" defer></script>
 </body>
 </html>

@@ -18,7 +18,10 @@
     activePilot: $('#activePilot'), mascotMood: $('#mascotMood'), feverGaugeFill: $('#feverGaugeFill'), feverGaugeLabel: $('#feverGaugeLabel'),
     result: $('#resultOverlay'), resultKicker: $('#resultKicker'), resultMascot: $('#resultMascot'), resultWinner: $('#resultWinner'), resultSummary: $('#resultSummary'),
     toast: $('#toast'), sound: $('#soundButton'), soundLabel: $('#soundLabel'), hint: $('#hintButton'), hintCount: $('#hintCount'),
-    difficultyPicker: $('#difficultyPicker'), setupDifficultyPicker: $('#setupDifficultyPicker')
+    difficultyPicker: $('#difficultyPicker'), setupDifficultyPicker: $('#setupDifficultyPicker'),
+    passportLevel: $('#passportLevel'), passportFragments: $('#passportFragments'), passportXp: $('#passportXp'), passportXpLabel: $('#passportXpLabel'),
+    passportXpFill: $('#passportXpFill'), passportMatches: $('#passportMatches'), passportWins: $('#passportWins'), passportWinRate: $('#passportWinRate'),
+    passportStreak: $('#passportStreak'), passportMissionMeta: $('#passportMissionMeta'), missionList: $('#missionList'), passportBadgeMeta: $('#passportBadgeMeta'), badgeList: $('#badgeList')
   };
   const modeLabels = {classic: '클래식 쿵', speed: '번개 쿵', relay: '릴레이 쿵'};
   const crewCatalog = KungCrew;
@@ -39,6 +42,11 @@
     ctx: null, master: null, music: null, sfx: null, compressor: null, noise: null, scheduler: null,
     nextStepAt: 0, step: 0, scene: 'lobby', mode: 'classic', urgency: 0, fever: false
   };
+  const progression = KungProgression.createStore({
+    key: 'segulja-passport-v1',
+    read: () => localStorage.getItem('segulja-passport-v1'),
+    write: value => localStorage.setItem('segulja-passport-v1', value)
+  });
   localStorage.setItem('segulja-player', app.playerId);
 
   function socketUrl() {
@@ -204,6 +212,7 @@
     }
     els.waitingCopy.hidden = room.phase === 'playing';
     els.controls.hidden = room.phase === 'playing' || (!isHost && room.phase !== 'waiting');
+    recordProgression(room);
     processMatchFeedback(room);
     // No asynchronous autofocus: a dismissed mobile keyboard must stay dismissed.
     updateInputViewport();
@@ -212,6 +221,69 @@
     app.lastPlayAt = room.history?.at(-1)?.at || 0;
     app.lastFever = Boolean(room.fever); app.lastTurn = room.turnPlayerId;
     app.previousLives = new Map(room.players.map(player => [player.id, player.lives]));
+  }
+
+  function renderPassport(profile = progression.get()) {
+    if (!els.passportLevel || !profile) return;
+    const level = KungProgression.levelInfo(profile.xp);
+    const missions = progression.missions();
+    const badges = progression.badges();
+    const completedMissions = missions.filter(mission => mission.progress >= mission.goal).length;
+    const unlockedBadges = badges.filter(badge => badge.unlocked).length;
+    const winRate = profile.matches ? Math.round(profile.wins / profile.matches * 100) : 0;
+    els.passportLevel.textContent = `LV ${level.level}`;
+    els.passportFragments.textContent = profile.fragments.toLocaleString('ko-KR');
+    els.passportXp.textContent = `${level.current} / ${level.needed} XP`;
+    els.passportXpLabel.textContent = level.level >= 99 ? '최고 레벨에 도달했어요' : `다음 레벨까지 ${Math.max(0, level.needed - level.current)} XP`;
+    els.passportXpFill.style.width = `${level.percent}%`;
+    els.passportMatches.textContent = profile.matches.toLocaleString('ko-KR');
+    els.passportWins.textContent = profile.wins.toLocaleString('ko-KR');
+    els.passportWinRate.textContent = `${winRate}%`;
+    els.passportStreak.textContent = `${profile.streak}일`;
+    els.passportMissionMeta.textContent = `${completedMissions} / ${missions.length} 완료`;
+    els.passportBadgeMeta.textContent = `${unlockedBadges} / ${badges.length}`;
+    els.missionList.replaceChildren(...missions.map(mission => {
+      const complete = mission.progress >= mission.goal;
+      const item = document.createElement('div');
+      item.className = `mission-item${complete ? ' done' : ''}`;
+      const icon = document.createElement('span'); icon.className = 'mission-icon'; icon.textContent = mission.icon; icon.ariaHidden = 'true';
+      const copy = document.createElement('span'); copy.className = 'mission-copy';
+      const title = document.createElement('strong'); title.textContent = mission.title;
+      const description = document.createElement('small'); description.textContent = `${mission.description} · ${Math.min(mission.progress, mission.goal)} / ${mission.goal}`;
+      const meter = document.createElement('span'); meter.className = 'mission-meter';
+      const meterFill = document.createElement('i'); meterFill.style.width = `${Math.min(100, mission.progress / mission.goal * 100)}%`; meter.append(meterFill);
+      copy.append(title, description, meter);
+      const reward = document.createElement('span'); reward.className = 'mission-reward';
+      const rewardLabel = document.createElement('small'); rewardLabel.textContent = `+${mission.reward} ✦`;
+      const claimButton = document.createElement('button'); claimButton.type = 'button'; claimButton.dataset.mission = mission.id;
+      claimButton.className = mission.claimed ? 'claimed' : '';
+      claimButton.disabled = mission.claimed || !complete;
+      claimButton.textContent = mission.claimed ? '받음' : complete ? '받기' : '진행 중';
+      claimButton.setAttribute('aria-label', `${mission.title} ${mission.claimed ? '보상 받음' : '보상 받기'}`);
+      reward.append(rewardLabel, claimButton); item.append(icon, copy, reward);
+      return item;
+    }));
+    els.badgeList.replaceChildren(...badges.map((badge, index) => {
+      const item = document.createElement('div'); item.className = `badge-item${badge.unlocked ? ' unlocked' : ''}`;
+      const icon = document.createElement('i'); icon.textContent = ['✦', '🔥', '◈', '★'][index] || '✦'; icon.ariaHidden = 'true';
+      const copy = document.createElement('span'); const label = document.createElement('strong'); label.textContent = badge.label;
+      const description = document.createElement('small'); description.textContent = badge.unlocked ? '획득 완료' : badge.description;
+      copy.append(label, description); item.append(icon, copy); item.title = `${badge.label} · ${badge.description}`; return item;
+    }));
+  }
+
+  function recordProgression(room) {
+    const previousPhase = app.lastPhase;
+    const latest = room.history?.at(-1);
+    let changed = false;
+    const record = event => { progression.record(event); changed = true; };
+    if (room.phase === 'playing' && previousPhase !== 'playing') record('match');
+    // Ignore history already present when joining an active room; only count new local plays.
+    if (previousPhase !== null && latest && latest.at > app.lastPlayAt && latest.playerId === app.playerId) record('word');
+    const currentBest = progression.get().bestCombo;
+    if (Number.isFinite(Number(room.combo)) && room.combo > currentBest) record({type: 'combo', value: room.combo});
+    if (room.phase === 'finished' && previousPhase === 'playing' && room.winnerId === app.playerId) record('win');
+    if (changed) renderPassport();
   }
 
   function renderPlayers(room) {
@@ -715,6 +787,15 @@
     els.dictionaryResult.className = 'dictionary-result';
     els.dictionaryResult.textContent = '검증할 단어를 입력하세요';
   });
+  els.missionList?.addEventListener('click', event => {
+    const button = event.target.closest('[data-mission]');
+    if (!button || button.disabled) return;
+    const result = progression.claim(button.dataset.mission);
+    if (!result.claimed) return;
+    renderPassport(result.profile);
+    tone('win');
+    toast(`오늘의 임무 완료 · +${result.reward} 조각`);
+  });
   els.setupForm.addEventListener('submit', event => {
     event.preventDefault();
     app.nickname = els.nickname.value.trim().replace(/[^가-힣A-Za-z0-9 ]/g, '').slice(0, 10) || `익명쿵${100 + Math.floor(Math.random() * 900)}`;
@@ -778,7 +859,12 @@
   }));
   $('#leaveButton').addEventListener('click', goHome);
   $$('[data-go-home]').forEach(button => button.addEventListener('click', goHome));
-  $$('.reactions button').forEach(button => button.addEventListener('click', () => send({type: 'react', emoji: button.dataset.reaction})));
+  $$('.reactions button').forEach(button => button.addEventListener('click', () => {
+    if (!app.room || app.socket?.readyState !== WebSocket.OPEN) return;
+    progression.record('react');
+    renderPassport();
+    send({type: 'react', emoji: button.dataset.reaction});
+  }));
 
   async function shareRoom() {
     const url = `${location.origin}${location.pathname}?room=${app.room?.roomCode || ''}`;
@@ -860,7 +946,7 @@
     localStorage.setItem('segulja-mascot', String(app.mascot)); renderCrewGrid(); tone('reaction');
   });
   app.crewPage = Math.floor(app.mascot / 8);
-  renderCrewGrid();
+  renderCrewGrid(); renderPassport();
   loadLobby(); setInterval(() => { if (!app.room) loadLobby(); }, 5000); requestAnimationFrame(updateTimer);
   const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (initialRoom?.length === 5) useIdentityThen('join', {code: initialRoom});
