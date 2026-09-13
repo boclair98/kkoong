@@ -96,7 +96,7 @@ docker run --rm -p 8080:8080 three-letter-boom
 ### 공개 저장소와 운영 배포
 
 - 운영 URL: https://segulja-kkung.coders.kr
-- canonical upstream: https://github.com/boclair98/three-letter-boom
+- canonical upstream: https://github.com/boclair98/kkoong (GitHub이 기존 `three-letter-boom` 저장소를 이 이름으로 리디렉션)
 - organization fork: https://github.com/coders-kr/three-letter-boom
 - Coders.kr 배포 소스: canonical upstream의 기본 브랜치 `main`
 
