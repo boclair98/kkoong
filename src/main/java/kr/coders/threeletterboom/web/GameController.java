@@ -4,6 +4,7 @@ import kr.coders.threeletterboom.game.RoomService;
 import kr.coders.threeletterboom.game.WordDictionary;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +25,7 @@ public class GameController {
     }
 
     @GetMapping("/lobby")
+    @CrossOrigin(origins = "*") // Read-only public room summaries for the separate Apps in Toss WebView.
     public ResponseEntity<Map<String, Object>> lobby() {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(2, TimeUnit.SECONDS).cachePublic())
                 .body(Map.of("rooms", rooms.lobbyRooms(), "stats", rooms.publicStats(), "serverTime", System.currentTimeMillis()));

@@ -53,6 +53,7 @@ public class RoomService {
                 case "create" -> create(session, message);
                 case "join" -> join(session, message);
                 case "quickJoin" -> quickJoin(session, message);
+                case "duelQueue" -> duelQueue(session, message);
                 case "start" -> withPlayer(session, (room, player) -> start(room, player));
                 case "word" -> withPlayer(session, (room, player) -> submitWord(room, player, text(message, "word")));
                 case "hint" -> withPlayer(session, this::requestHint);
@@ -77,7 +78,7 @@ public class RoomService {
     }
 
     public List<Map<String, Object>> lobbyRooms() {
-        return rooms.values().stream().filter(room -> room.phase == GameRoom.Phase.WAITING)
+        return rooms.values().stream().filter(room -> !room.duelQueue && room.phase == GameRoom.Phase.WAITING)
                 .sorted(Comparator.comparing(room -> room.createdAt))
                 .limit(12)
                 .map(room -> {
@@ -123,7 +124,7 @@ public class RoomService {
     private void quickJoin(WebSocketSession session, JsonNode message) {
         GameMode mode = GameMode.from(text(message, "mode"));
         GameRoom room = rooms.values().stream()
-                .filter(candidate -> candidate.mode == mode && candidate.phase == GameRoom.Phase.WAITING)
+                .filter(candidate -> !candidate.duelQueue && candidate.mode == mode && candidate.phase == GameRoom.Phase.WAITING)
                 .filter(candidate -> candidate.players.size() < MAX_PLAYERS)
                 .findFirst().orElseGet(() -> {
                     GameRoom created = new GameRoom(newCode(), mode, GameDifficulty.from(text(message, "difficulty")));
@@ -131,6 +132,26 @@ public class RoomService {
                     return created;
                 });
         joinRoom(session, message, room);
+    }
+
+    private void duelQueue(WebSocketSession session, JsonNode message) {
+        GameMode mode = GameMode.from(text(message, "mode"));
+        for (int attempt = 0; attempt < 4; attempt++) {
+            GameRoom waiting = rooms.values().stream()
+                    .filter(candidate -> candidate.duelQueue && candidate.mode == mode
+                            && candidate.phase == GameRoom.Phase.WAITING && candidate.players.size() < 2)
+                    .min(Comparator.comparing(candidate -> candidate.createdAt)).orElse(null);
+            if (waiting == null) break;
+            try {
+                joinRoom(session, message, waiting);
+                return;
+            } catch (GameProblem problem) {
+                if (!"ROOM_FULL".equals(problem.code) && !"GAME_STARTED".equals(problem.code)) throw problem;
+            }
+        }
+        GameRoom created = new GameRoom(newCode(), mode, GameDifficulty.from(text(message, "difficulty")), true);
+        rooms.put(created.code, created);
+        joinRoom(session, message, created);
     }
 
     private void joinRoom(WebSocketSession session, JsonNode message, GameRoom room) {
@@ -146,7 +167,7 @@ public class RoomService {
                 if (room.phase != GameRoom.Phase.WAITING) {
                     throw new GameProblem("GAME_STARTED", "이미 시작한 방이에요");
                 }
-                if (room.players.size() >= MAX_PLAYERS) {
+                if (room.players.size() >= (room.duelQueue ? 2 : MAX_PLAYERS)) {
                     throw new GameProblem("ROOM_FULL", "방이 꽉 찼어요");
                 }
                 player = new GameRoom.Player(playerId, nickname, false, room.mode.lives(), session);
@@ -167,11 +188,17 @@ public class RoomService {
             send(session, Map.of("type", "joined", "roomCode", room.code, "playerId", playerId,
                     "mascot", player.mascot, "mascotAdjusted", requestedMascot >= 0 && requestedMascot != player.mascot));
             broadcastState(room);
+            if (room.duelQueue && room.phase == GameRoom.Phase.WAITING
+                    && room.players.values().stream().filter(p -> !p.bot && p.connected).count() == 2) {
+                resetRound(room);
+                broadcastState(room);
+            }
         }
     }
 
     private void start(GameRoom room, GameRoom.Player requester) {
         synchronized (room) {
+            if (room.duelQueue) throw new GameProblem("DUEL_AUTO", "1:1 대전은 상대가 오면 자동으로 시작해요");
             requireHost(room, requester);
             if (room.phase == GameRoom.Phase.PLAYING) throw new GameProblem("ALREADY_STARTED", "이미 게임 중이에요");
             if (room.players.values().stream().filter(player -> !player.bot && player.connected).count() == 1
@@ -267,6 +294,7 @@ public class RoomService {
 
     private void addBot(GameRoom room, GameRoom.Player requester) {
         synchronized (room) {
+            if (room.duelQueue) throw new GameProblem("DUEL_AUTO", "1:1 대전에서는 쿵봇을 추가할 수 없어요");
             requireHost(room, requester);
             if (room.phase != GameRoom.Phase.WAITING) throw new GameProblem("GAME_STARTED", "대기 중에만 쿵봇을 부를 수 있어요");
             addBotInternal(room);
@@ -515,6 +543,8 @@ public class RoomService {
         result.put("type", "state");
         result.put("serverTime", System.currentTimeMillis());
         result.put("roomCode", room.code);
+        result.put("matchType", room.duelQueue ? "duel" : "room");
+        result.put("maxPlayers", room.duelQueue ? 2 : MAX_PLAYERS);
         result.put("phase", room.phase.name().toLowerCase(Locale.ROOT));
         result.put("hostId", room.hostId);
         int effectiveSeconds = room.phase == GameRoom.Phase.PLAYING

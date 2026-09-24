@@ -39,6 +39,52 @@ class GameWebSocketIntegrationTests {
     private final JsonMapper json = JsonMapper.builder().build();
 
     @Test
+    void publicLobbyCanBeReadFromTheSeparateMiniappOrigin() throws Exception {
+        HttpResponse<String> response = HttpClient.newHttpClient().send(HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/api/lobby"))
+                .header("Origin", "https://apps-in-toss.toss.im")
+                .GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode());
+        assertEquals("*", response.headers().firstValue("access-control-allow-origin").orElse(null));
+        assertTrue(json.readTree(response.body()).get("rooms").isArray());
+    }
+
+    @Test
+    void duelQueueMatchesTwoPeopleAndStartsAutomaticallyWithoutAppearingInPublicRooms() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        URI uri = URI.create("ws://localhost:" + port + "/ws/game");
+        MessageListener firstMessages = new MessageListener();
+        MessageListener secondMessages = new MessageListener();
+        WebSocket first = client.newWebSocketBuilder().buildAsync(uri, firstMessages).get(5, TimeUnit.SECONDS);
+        WebSocket second = client.newWebSocketBuilder().buildAsync(uri, secondMessages).get(5, TimeUnit.SECONDS);
+        try {
+            first.sendText("{\"type\":\"duelQueue\",\"mode\":\"classic\",\"nickname\":\"첫선수\",\"playerId\":\"duel-first\"}", true).join();
+            String code = firstMessages.await("joined", json).get("roomCode").asText();
+            JsonNode waiting = firstMessages.awaitState("waiting", json);
+            assertEquals("duel", waiting.get("matchType").asText());
+            assertEquals(2, waiting.get("maxPlayers").asInt());
+            HttpResponse<String> lobby = client.send(HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + port + "/api/lobby")).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            for (JsonNode room : json.readTree(lobby.body()).get("rooms")) {
+                assertFalse(code.equals(room.get("code").asText()));
+            }
+
+            second.sendText("{\"type\":\"duelQueue\",\"mode\":\"classic\",\"nickname\":\"둘째선수\",\"playerId\":\"duel-second\"}", true).join();
+            assertEquals(code, secondMessages.await("joined", json).get("roomCode").asText());
+            JsonNode firstPlaying = firstMessages.awaitState("playing", json);
+            JsonNode secondPlaying = secondMessages.awaitState("playing", json);
+            assertEquals(2, firstPlaying.get("players").size());
+            assertEquals(2, secondPlaying.get("players").size());
+            assertNotNull(firstPlaying.get("requiredSyllable").asText());
+        } finally {
+            first.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+            second.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        }
+    }
+
+    @Test
     void dictionaryCheckEndpointSeparatesKnownAndInventedWords() throws Exception {
         HttpClient client = HttpClient.newHttpClient();
         String valid = URLEncoder.encode("자전거", StandardCharsets.UTF_8);

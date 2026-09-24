@@ -15,6 +15,7 @@ final class GameRoom {
 
     final String code;
     final GameMode mode;
+    final boolean duelQueue;
     GameDifficulty difficulty;
     final Map<String, Player> players = new LinkedHashMap<>();
     final Set<String> usedWords = new LinkedHashSet<>();
@@ -40,9 +41,14 @@ final class GameRoom {
     }
 
     GameRoom(String code, GameMode mode, GameDifficulty difficulty) {
+        this(code, mode, difficulty, false);
+    }
+
+    GameRoom(String code, GameMode mode, GameDifficulty difficulty, boolean duelQueue) {
         this.code = code;
         this.mode = mode;
         this.difficulty = difficulty;
+        this.duelQueue = duelQueue;
     }
 
     static final class Player {

@@ -5,6 +5,8 @@
 ## 플레이 기능
 
 - 회원가입 없이 게스트로 빠른 시작, 방 생성, 5자리 코드/링크 초대
+- 앱인토스 전용 `duelQueue` 1:1 자동매칭: 같은 모드의 사람 둘이 모이면 자동 시작하며 공개 방 목록에서는 제외
+- 앱인토스 공개 방 목록에 사용할 `/api/lobby` 읽기 API는 별도 WebView 출처에서도 접근 가능
 - 최대 8명, 혼자 시작하면 자동으로 합류하는 `쿵봇`
 - AI 우주 캐릭터 24종 무료 선택: 동물 탐사대 12종, 외계 친구 6종, 로봇 팀 6종
 - 분류·페이지·랜덤 선택, 사람/봇 모두 방 안 중복 없는 외형 배정, 재접속 시 외형 유지
@@ -97,7 +99,7 @@ docker run --rm -p 8080:8080 three-letter-boom
 
 - 운영 URL: https://segulja-kkung.coders.kr
 - canonical upstream: https://github.com/boclair98/kkoong (GitHub이 기존 `three-letter-boom` 저장소를 이 이름으로 리디렉션)
-- organization fork: https://github.com/coders-kr/three-letter-boom
+- organization fork: https://github.com/coders-kr/kkoong (`boclair98/kkoong`의 실제 fork)
 - Coders.kr 배포 소스: canonical upstream의 기본 브랜치 `main`
 
 공개 저장소를 갱신할 때는 로컬 검증과 커밋 후 canonical upstream에 먼저 push하고,
@@ -107,7 +109,7 @@ docker run --rm -p 8080:8080 three-letter-boom
 
 ```sh
 git push origin main
-gh repo sync coders-kr/three-letter-boom -b main
+gh repo sync coders-kr/kkoong -b main
 ```
 
 Coders.kr 배포는 `coders.yaml`과 Dockerfile을 사용하며, 배포 후 `/actuator/health`,
