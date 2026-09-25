@@ -22,6 +22,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -45,6 +46,8 @@ class GameWebSocketIntegrationTests {
                 .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), listener).get(5, TimeUnit.SECONDS);
         try {
             socket.sendText("{\"type\":\"create\",\"nickname\":\"씨1발\"}", true).join();
+            assertEquals("INVALID_NICKNAME", listener.await("error", json).get("code").asText());
+            socket.sendText("{\"type\":\"create\",\"nickname\":\"임의별명\"}", true).join();
             assertEquals("INVALID_NICKNAME", listener.await("error", json).get("code").asText());
         } finally {
             socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
@@ -72,7 +75,7 @@ class GameWebSocketIntegrationTests {
         WebSocket first = client.newWebSocketBuilder().buildAsync(uri, firstMessages).get(5, TimeUnit.SECONDS);
         WebSocket second = client.newWebSocketBuilder().buildAsync(uri, secondMessages).get(5, TimeUnit.SECONDS);
         try {
-            first.sendText("{\"type\":\"duelQueue\",\"mode\":\"classic\",\"nickname\":\"첫선수\",\"playerId\":\"duel-first\"}", true).join();
+            first.sendText("{\"type\":\"duelQueue\",\"mode\":\"classic\",\"nickname\":\"별빛탐험가\",\"playerId\":\"duel-first\"}", true).join();
             String code = firstMessages.await("joined", json).get("roomCode").asText();
             JsonNode waiting = firstMessages.awaitState("waiting", json);
             assertEquals("duel", waiting.get("matchType").asText());
@@ -84,7 +87,7 @@ class GameWebSocketIntegrationTests {
                 assertFalse(code.equals(room.get("code").asText()));
             }
 
-            second.sendText("{\"type\":\"duelQueue\",\"mode\":\"classic\",\"nickname\":\"둘째선수\",\"playerId\":\"duel-second\"}", true).join();
+            second.sendText("{\"type\":\"duelQueue\",\"mode\":\"classic\",\"nickname\":\"은하항해사\",\"playerId\":\"duel-second\"}", true).join();
             assertEquals(code, secondMessages.await("joined", json).get("roomCode").asText());
             JsonNode firstPlaying = firstMessages.awaitState("playing", json);
             JsonNode secondPlaying = secondMessages.awaitState("playing", json);
@@ -120,7 +123,7 @@ class GameWebSocketIntegrationTests {
         WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
                 .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), listener).get(5, TimeUnit.SECONDS);
 
-        socket.sendText("{\"type\":\"create\",\"mode\":\"classic\",\"nickname\":\"테스터\",\"playerId\":\"guest-test-1234\",\"mascot\":3}", true).join();
+        socket.sendText("{\"type\":\"create\",\"mode\":\"classic\",\"nickname\":\"별빛파일럿\",\"playerId\":\"guest-test-1234\",\"mascot\":3}", true).join();
         JsonNode joined = listener.await("joined", json);
         assertEquals(5, joined.get("roomCode").asText().length());
         JsonNode waiting = listener.awaitState("waiting", json);
@@ -169,10 +172,10 @@ class GameWebSocketIntegrationTests {
         WebSocket host = client.newWebSocketBuilder().buildAsync(uri, hostMessages).get(5, TimeUnit.SECONDS);
         WebSocket guest = client.newWebSocketBuilder().buildAsync(uri, guestMessages).get(5, TimeUnit.SECONDS);
         try {
-            host.sendText("{\"type\":\"create\",\"nickname\":\"루미테스트\",\"mascot\":1}", true).join();
+            host.sendText("{\"type\":\"create\",\"nickname\":\"별빛탐험가\",\"mascot\":1}", true).join();
             String code = hostMessages.await("joined", json).get("roomCode").asText();
             hostMessages.awaitState("waiting", json);
-            guest.sendText("{\"type\":\"join\",\"code\":\"" + code + "\",\"nickname\":\"네오테스트\",\"mascot\":999}", true).join();
+            guest.sendText("{\"type\":\"join\",\"code\":\"" + code + "\",\"nickname\":\"은하항해사\",\"mascot\":999}", true).join();
             guestMessages.await("joined", json);
             JsonNode guestState = guestMessages.awaitState("waiting", json);
             JsonNode hostState = hostMessages.awaitState("waiting", json);
@@ -196,7 +199,7 @@ class GameWebSocketIntegrationTests {
             MessageListener hostMessages = new MessageListener();
             WebSocket host = client.newWebSocketBuilder().buildAsync(uri, hostMessages).get(5, TimeUnit.SECONDS);
             sockets.add(host);
-            host.sendText("{\"type\":\"create\",\"playerId\":\"guest-roster-host\",\"nickname\":\"크루방장\",\"mascot\":23}", true).join();
+            host.sendText("{\"type\":\"create\",\"playerId\":\"guest-roster-host\",\"nickname\":\"달빛탐험가\",\"mascot\":23}", true).join();
             JsonNode joined = hostMessages.await("joined", json);
             String code = joined.get("roomCode").asText();
             assertEquals(23, joined.get("mascot").asInt());
@@ -208,7 +211,8 @@ class GameWebSocketIntegrationTests {
                 WebSocket guest = client.newWebSocketBuilder().buildAsync(uri, messages).get(5, TimeUnit.SECONDS);
                 sockets.add(guest);
                 guest.sendText("{\"type\":\"join\",\"code\":\"" + code + "\",\"playerId\":\"guest-roster-" + i
-                        + "\",\"nickname\":\"크루" + i + "\",\"mascot\":23}", true).join();
+                        + "\",\"nickname\":\"" + List.of("별빛탐험가", "별빛항해사", "별빛파일럿", "별빛연구원",
+                                "은하탐험가", "은하항해사", "은하파일럿").get(i - 1) + "\",\"mascot\":23}", true).join();
                 JsonNode guestJoined = messages.await("joined", json);
                 lastAssigned = guestJoined.get("mascot").asInt();
                 assertTrue(guestJoined.get("mascotAdjusted").asBoolean());
@@ -224,7 +228,7 @@ class GameWebSocketIntegrationTests {
             WebSocket reconnect = client.newWebSocketBuilder().buildAsync(uri, reconnectMessages).get(5, TimeUnit.SECONDS);
             sockets.add(reconnect);
             reconnect.sendText("{\"type\":\"join\",\"code\":\"" + code
-                    + "\",\"playerId\":\"guest-roster-7\",\"nickname\":\"다시접속\",\"mascot\":23}", true).join();
+                    + "\",\"playerId\":\"guest-roster-7\",\"nickname\":\"은하파일럿\",\"mascot\":23}", true).join();
             assertEquals(lastAssigned, reconnectMessages.await("joined", json).get("mascot").asInt());
             assertEquals(8, reconnectMessages.awaitState("waiting", json).get("players").size());
         } finally {
@@ -238,7 +242,7 @@ class GameWebSocketIntegrationTests {
         WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
                 .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), messages).get(5, TimeUnit.SECONDS);
         try {
-            socket.sendText("{\"type\":\"create\",\"nickname\":\"봇크루검증\",\"mascot\":18}", true).join();
+            socket.sendText("{\"type\":\"create\",\"nickname\":\"혜성탐험가\",\"mascot\":18}", true).join();
             messages.await("joined", json); messages.awaitState("waiting", json);
             JsonNode waiting = null;
             for (int i = 0; i < 7; i++) {
@@ -264,7 +268,7 @@ class GameWebSocketIntegrationTests {
         WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
                 .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), messages).get(5, TimeUnit.SECONDS);
         try {
-            socket.sendText("{\"type\":\"create\",\"nickname\":\"난이도검증\",\"difficulty\":\"beginner\"}", true).join();
+            socket.sendText("{\"type\":\"create\",\"nickname\":\"우주항해사\",\"difficulty\":\"beginner\"}", true).join();
             messages.await("joined", json); messages.awaitState("waiting", json);
             socket.sendText("{\"type\":\"addBot\"}", true).join();
             JsonNode withBot = messages.awaitState("waiting", json);

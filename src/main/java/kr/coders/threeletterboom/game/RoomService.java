@@ -633,13 +633,10 @@ public class RoomService {
     }
 
     private String cleanNickname(String value) {
-        String cleaned = value == null ? "" : value.strip().replaceAll("[^가-힣A-Za-z0-9 ]", "").replaceAll("\\s+", " ");
-        if (cleaned.isBlank()) cleaned = "익명쿵" + (100 + random.nextInt(900));
-        cleaned = cleaned.substring(0, Math.min(cleaned.length(), 10));
-        if (ContentSafety.isBlocked(value) || ContentSafety.isBlocked(cleaned)) {
-            throw new GameProblem("INVALID_NICKNAME", "닉네임에 사용할 수 없는 표현이 있어요. 다른 이름을 입력해 주세요");
+        if (!AllowedNicknames.contains(value) || ContentSafety.isBlocked(value)) {
+            throw new GameProblem("INVALID_NICKNAME", "준비된 별명 중에서 골라 주세요");
         }
-        return cleaned;
+        return value;
     }
 
     private String newCode() {

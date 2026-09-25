@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="preload" as="image" href="/assets/orbit-arena-keyart.png">
   <link rel="preload" as="image" href="/assets/cosmic-mascots-v1.png">
-  <link rel="stylesheet" href="/app.css?v=20260906-16">
+  <link rel="stylesheet" href="/app.css?v=20260925-01">
   <link rel="stylesheet" href="/crew.css?v=20260906-16">
   <link rel="stylesheet" href="/crew-roster.css?v=20260906-16">
   <link rel="stylesheet" href="/game-input.css?v=20260906-16">
@@ -272,7 +272,8 @@
       <button class="dialog-close" value="cancel" aria-label="닫기">×</button>
       <span class="dialog-kicker">게임 준비</span><h2>플레이할 이름을 정해주세요</h2>
       <div class="setup-crew"><span id="setupMascot" class="mascot-sprite" aria-hidden="true"></span><span id="setupCrewName">루미와 함께 출격!</span></div>
-      <label for="nicknameInput">별명</label><input id="nicknameInput" maxlength="10" autocomplete="nickname" placeholder="예: 리듬고수">
+      <label for="nicknameInput">검수된 별명</label><select id="nicknameInput" aria-describedby="nicknameHelp"></select>
+      <p id="nicknameHelp" class="nickname-help">모두에게 보이는 이름 · 준비된 24개 중 선택</p>
       <fieldset id="modePicker"><legend>게임 모드</legend>
         <label><input type="radio" name="mode" value="classic" checked><span><b>정통</b><small>3글자 · 12초</small></span></label>
         <label><input type="radio" name="mode" value="speed"><span><b>번개</b><small>3글자 · 7초</small></span></label>
@@ -290,6 +291,6 @@
   <script src="/crew-catalog.js?v=20260906-16" defer></script>
   <script src="/game-input.js?v=20260906-16" defer></script>
   <script src="/progression.js?v=20260914-01" defer></script>
-  <script src="/app.js?v=20260914-01" defer></script>
+  <script src="/app.js?v=20260925-01" defer></script>
 </body>
 </html>

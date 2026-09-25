@@ -40,7 +40,7 @@
   check('lobby-has-no-horizontal-overflow', document.documentElement.scrollWidth <= innerWidth + 1);
   $('#createButton').click();
   check('setup-shows-selected-character', $('#setupDialog').open && $('#setupMascot').dataset.mascot === '18');
-  $('#nicknameInput').value = '크루QA';
+  $('#nicknameInput').value = '별빛탐험가';
   $('#setupForm').requestSubmit($('#setupSubmit'));
   await until(() => !$('#gameScreen').hidden && document.querySelectorAll('.player-card').length === 1);
   for (let i = 0; i < 7; i++) {

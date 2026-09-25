@@ -24,13 +24,16 @@
     passportStreak: $('#passportStreak'), passportMissionMeta: $('#passportMissionMeta'), missionList: $('#missionList'), passportBadgeMeta: $('#passportBadgeMeta'), badgeList: $('#badgeList')
   };
   const modeLabels = {classic: '클래식 쿵', speed: '번개 쿵', relay: '릴레이 쿵'};
+  const approvedNames = ['별빛', '은하', '달빛', '혜성', '우주', '반짝']
+    .flatMap(prefix => ['탐험가', '항해사', '파일럿', '연구원'].map(role => prefix + role));
+  els.nickname.replaceChildren(...approvedNames.map(name => new Option(name, name)));
   const crewCatalog = KungCrew;
   const crewNames = crewCatalog.map(crew => crew.name);
   const savedMascot = Number(localStorage.getItem('segulja-mascot'));
 
   const app = {
     socket: null, connecting: null, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
-    nickname: localStorage.getItem('segulja-nickname') || '', desiredRoom: null, setupIntent: null, pendingCode: '',
+    nickname: approvedNames.includes(localStorage.getItem('segulja-nickname')) ? localStorage.getItem('segulja-nickname') : '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
     crewFilter: 'all', crewPage: 0, crewNotice: '',
@@ -135,6 +138,12 @@
       wordEntry.reject(); syncInputControls();
       toast(message.message);
       tone('error');
+      if (message.code === 'INVALID_NICKNAME') {
+        app.nickname = '';
+        localStorage.removeItem('segulja-nickname');
+        openSetup(app.setupIntent || 'quick', {mode: app.pendingMode, code: app.pendingCode});
+        return;
+      }
       if (['HANGUL_ONLY', 'WRONG_LENGTH', 'WRONG_START', 'DUPLICATE', 'NOT_IN_DICTIONARY'].includes(message.code)) {
         const labels = {HANGUL_ONLY: '한글만!', WRONG_LENGTH: '글자 수!', WRONG_START: '첫 글자!', DUPLICATE: '중복 단어!', NOT_IN_DICTIONARY: '사전 미등록!'};
         showImpact('reject', labels[message.code] || '인정 불가!', message.message, '다시 도전', app.playerId);
@@ -574,7 +583,7 @@
 
   function openSetup(intent, {mode = 'classic', code = ''} = {}) {
     app.setupIntent = intent; app.pendingMode = mode; app.pendingCode = code;
-    els.nickname.value = app.nickname;
+    els.nickname.value = app.nickname || approvedNames[0];
     els.modePicker.hidden = intent === 'join';
     const radio = $(`input[name="mode"][value="${mode}"]`, els.modePicker); if (radio) radio.checked = true;
     if (els.setupDifficultyPicker) {
@@ -798,7 +807,8 @@
   });
   els.setupForm.addEventListener('submit', event => {
     event.preventDefault();
-    app.nickname = els.nickname.value.trim().replace(/[^가-힣A-Za-z0-9 ]/g, '').slice(0, 10) || `익명쿵${100 + Math.floor(Math.random() * 900)}`;
+    if (!approvedNames.includes(els.nickname.value)) { toast('준비된 별명 중에서 골라 주세요'); return; }
+    app.nickname = els.nickname.value;
     localStorage.setItem('segulja-nickname', app.nickname);
     app.pendingMode = $('input[name="mode"]:checked', els.modePicker)?.value || app.pendingMode;
     app.pendingDifficulty = $('input[name="difficulty"]:checked', els.setupDifficultyPicker)?.value || app.pendingDifficulty;
