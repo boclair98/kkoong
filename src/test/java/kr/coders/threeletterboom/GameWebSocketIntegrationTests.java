@@ -39,6 +39,19 @@ class GameWebSocketIntegrationTests {
     private final JsonMapper json = JsonMapper.builder().build();
 
     @Test
+    void rejectsUnsafeNicknameBeforeCreatingAVisibleRoom() throws Exception {
+        MessageListener listener = new MessageListener();
+        WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
+                .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), listener).get(5, TimeUnit.SECONDS);
+        try {
+            socket.sendText("{\"type\":\"create\",\"nickname\":\"씨1발\"}", true).join();
+            assertEquals("INVALID_NICKNAME", listener.await("error", json).get("code").asText());
+        } finally {
+            socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+        }
+    }
+
+    @Test
     void publicLobbyCanBeReadFromTheSeparateMiniappOrigin() throws Exception {
         HttpResponse<String> response = HttpClient.newHttpClient().send(HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/api/lobby"))

@@ -107,6 +107,7 @@ public class RoomService {
     }
 
     private void create(WebSocketSession session, JsonNode message) {
+        cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
         String code = newCode();
         GameRoom room = new GameRoom(code, mode, GameDifficulty.from(text(message, "difficulty")));
@@ -122,6 +123,7 @@ public class RoomService {
     }
 
     private void quickJoin(WebSocketSession session, JsonNode message) {
+        cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
         GameRoom room = rooms.values().stream()
                 .filter(candidate -> !candidate.duelQueue && candidate.mode == mode && candidate.phase == GameRoom.Phase.WAITING)
@@ -135,6 +137,7 @@ public class RoomService {
     }
 
     private void duelQueue(WebSocketSession session, JsonNode message) {
+        cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
         for (int attempt = 0; attempt < 4; attempt++) {
             GameRoom waiting = rooms.values().stream()
@@ -632,7 +635,11 @@ public class RoomService {
     private String cleanNickname(String value) {
         String cleaned = value == null ? "" : value.strip().replaceAll("[^가-힣A-Za-z0-9 ]", "").replaceAll("\\s+", " ");
         if (cleaned.isBlank()) cleaned = "익명쿵" + (100 + random.nextInt(900));
-        return cleaned.substring(0, Math.min(cleaned.length(), 10));
+        cleaned = cleaned.substring(0, Math.min(cleaned.length(), 10));
+        if (ContentSafety.isBlocked(value) || ContentSafety.isBlocked(cleaned)) {
+            throw new GameProblem("INVALID_NICKNAME", "닉네임에 사용할 수 없는 표현이 있어요. 다른 이름을 입력해 주세요");
+        }
+        return cleaned;
     }
 
     private String newCode() {

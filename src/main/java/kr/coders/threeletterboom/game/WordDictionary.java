@@ -41,7 +41,8 @@ public class WordDictionary {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                 new ClassPathResource(resource).getInputStream(), StandardCharsets.UTF_8))) {
             reader.lines().map(String::trim).filter(line -> !line.isBlank() && !line.startsWith("#"))
-                    .map(WordDictionary::normalize).filter(WordDictionary::isHangulWord).forEach(consumer);
+                    .map(WordDictionary::normalize).filter(WordDictionary::isHangulWord)
+                    .filter(word -> !ContentSafety.isBlocked(word)).forEach(consumer);
         } catch (Exception exception) {
             throw new IllegalStateException("내장 단어 사전을 읽지 못했습니다: " + resource, exception);
         }
