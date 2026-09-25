@@ -13,6 +13,9 @@ class ContentSafetyTests {
         assertTrue(ContentSafety.isBlocked("Sh1t"));
         assertTrue(ContentSafety.isBlocked("귀여운병신"));
         assertTrue(ContentSafety.isBlocked("야동탐험"));
+        assertTrue(ContentSafety.isBlocked("대갈통"));
+        assertTrue(ContentSafety.isBlocked("꼬라지"));
+        assertTrue(ContentSafety.isBlocked("미친개"));
     }
 
     @Test

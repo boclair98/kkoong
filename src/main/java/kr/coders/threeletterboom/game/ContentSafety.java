@@ -9,7 +9,8 @@ final class ContentSafety {
     private static final Set<String> KOREAN_BLOCKED = Set.of(
             "씨발", "시발", "씨팔", "십팔", "씹", "좆", "존나", "개새끼", "새끼",
             "병신", "지랄", "미친놈", "미친년", "꺼져", "섹스", "야동", "보지",
-            "자지", "강간", "멍청이", "젠장", "빌어먹을");
+            "자지", "강간", "멍청이", "젠장", "빌어먹을", "대갈통",
+            "꼬라지", "바보짓", "바보상자", "미친", "닥쳐", "꺼지");
     private static final Set<String> LATIN_BLOCKED = Set.of(
             "fuck", "shit", "bitch", "asshole", "motherfucker", "cunt", "dick", "pussy", "rape");
 
