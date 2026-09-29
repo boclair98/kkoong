@@ -1,0 +1,36 @@
+/* Paginated crew hangar: load only the visible page, never all 24 portraits at once. */
+.crew-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.crew-filters { display:flex; flex-wrap:wrap; gap:7px; }
+.crew-filters button,.crew-random,.crew-pagination button { min-height:42px; border:1px solid var(--line); border-radius:12px; padding:9px 13px; background:#10132e; color:#b1bed9; font-size:11px; font-weight:750; cursor:pointer; }
+.crew-filters button span { margin-left:5px; color:#8290b1; font-size:10px; }
+.crew-filters button[aria-pressed="true"] { border-color:#67dcff; color:#eefcff; background:#16344c; box-shadow:inset 0 0 18px #32648130; }
+.crew-filters button[aria-pressed="true"] span { color:#83e9ff; }
+.crew-random { white-space:nowrap; color:#ffdf91; border-color:#705b3b; }
+.crew-catalog-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; min-height:400px; align-content:start; }
+.crew-catalog-grid .crew-card { display:grid; grid-template-columns:48% minmax(0,1fr); align-items:center; padding:12px 12px 14px; gap:8px; min-height:190px; overflow:hidden; }
+.crew-catalog-grid .crew-card>.mascot-sprite { width:100%; aspect-ratio:1; }
+.crew-catalog-grid .crew-card small { font-size:9px; line-height:1.5; }
+.crew-catalog-grid .crew-card strong { font-size:23px; }
+.crew-catalog-grid .crew-card em { font-size:10px; line-height:1.5; word-break:keep-all; }
+.crew-catalog-grid .crew-card>b { top:9px; right:9px; font-size:8px; }
+.crew-pagination { display:flex; justify-content:center; align-items:center; gap:16px; margin-top:17px; }
+.crew-pagination button { min-width:46px; font-size:17px; }
+.crew-pagination button:disabled { opacity:.3; cursor:default; }
+.crew-pagination span { min-width:88px; text-align:center; color:#9aabcc; font-size:11px; }
+.crew-room-note { color:#7383a6; font-size:10px; line-height:1.7; margin:7px 0 0; }
+@media(max-width:1180px) {
+  .crew-catalog-grid .crew-card { display:block; min-height:0; padding:14px; }
+  .crew-catalog-grid .crew-card>.mascot-sprite { max-height:155px; }
+}
+@media(max-width:760px) {
+  .crew-toolbar { align-items:stretch; flex-direction:column; gap:9px; }
+  .crew-filters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+  .crew-filters button { padding:10px 7px; font-size:10px; }
+  .crew-random { align-self:flex-end; min-height:38px; font-size:10px; }
+  .crew-catalog-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; min-height:0; }
+  .crew-catalog-grid .crew-card { padding:9px 12px 13px; }
+  .crew-catalog-grid .crew-card strong { font-size:20px; }
+  .crew-catalog-grid .crew-card>.mascot-sprite { max-height:150px; }
+  .crew-catalog-grid .crew-card em { font-size:9px; min-height:27px; }
+  .crew-room-note { font-size:9px; }
+}

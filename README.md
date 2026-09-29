@@ -25,6 +25,25 @@
 - 제출·턴 전환·시간 초과·재대결 입력 초기화, 한글 IME 중복 제출 방지
 - 외부 광고·결제·후원 기능 없음(현재는 플레이 보상만 제공)
 
+## Apps in Toss 버전
+
+`segulja-kkung/`에 Apps in Toss 공식 Web Framework 기반의 모바일 번들이 포함되어
+있습니다. 기존 Spring 서버를 그대로 사용하면서 앱인토스 WebView에서 safe-area,
+WebSocket, 서버 사전 검증, 친구 초대 딥링크를 사용할 수 있도록 구성했습니다.
+
+- 앱 이름: `segulja-kkung`
+- 앱인토스 서비스 링크: `intoss://segulja-kkung`
+- 게임 서버: https://segulja-kkung.coders.kr
+- 개발 실행: 루트에서 `mvnw.cmd spring-boot:run`, `segulja-kkung`에서 `npm run dev`
+- 번들 생성: `segulja-kkung`에서 `npm run build`
+- 콘솔 업로드: Apps in Toss 콘솔에서 번들 업로드 후 테스트 푸시
+
+이 버전은 게스트 플레이를 우선해 Toss 로그인 권한을 요구하지 않습니다. XP·임무·
+배지는 현재 브라우저/기기 로컬에만 저장되며, 계정 동기화·공식 랭킹·결제·광고·
+공식 외부 제출은 제공하지 않습니다. 앱인토스 실제 출시는 콘솔의 앱 정보 검수,
+게임 기능 등록, 테스트 기기 확인과 승인이 필요합니다. 자세한 프런트엔드 설정은
+[`segulja-kkung/README.md`](segulja-kkung/README.md)를 참고하세요.
+
 ## 기술 구성
 
 - Java 21, Spring Boot 4.1.1, Spring WebMVC/WebSocket, Jackson 3
@@ -126,6 +145,7 @@ src/main/resources/static/    의존성 없는 게임 UI, CSS, 캐릭터 자산
 src/main/resources/static/progression.js  로그인 전 로컬 성장·임무 규칙
 src/main/resources/static/progression.css 패스포트·임무·배지 UI
 src/main/resources/words-ko.txt  검증된 한국어 명사 데이터
+segulja-kkung/                 Apps in Toss Web Framework 번들 프로젝트
 src/test/                     Spring/WebSocket/사전/난이도 테스트
 tools/                        브라우저 스모크와 사전·자산 도구
 ```

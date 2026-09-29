@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# AI-readable product map
+# https://segulja-kkung.coders.kr/llms.txt

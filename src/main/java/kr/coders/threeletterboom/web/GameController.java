@@ -37,6 +37,7 @@ public class GameController {
     }
 
     @GetMapping("/word/check")
+    @CrossOrigin(origins = "*") // The mini-app checks words from its Apps in Toss WebView origin.
     public Map<String, Object> checkWord(@RequestParam(defaultValue = "") String word) {
         String normalized = WordDictionary.normalize(word);
         boolean hangul = WordDictionary.isHangulWord(normalized);
