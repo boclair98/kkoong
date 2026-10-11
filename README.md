@@ -44,6 +44,19 @@ WebSocket, 서버 사전 검증, 친구 초대 딥링크를 사용할 수 있도
 게임 기능 등록, 테스트 기기 확인과 승인이 필요합니다. 자세한 프런트엔드 설정은
 [`segulja-kkung/README.md`](segulja-kkung/README.md)를 참고하세요.
 
+## 화면 흐름
+
+Google Stitch의 KUNG ORBIT 시안에서 제시한 우주 아케이드 방향을 바탕으로, 실제 서버 데이터에 연결되는 6개 대표 화면으로 구성합니다.
+
+- 데스크톱 로비: 빠른 매칭, 친구 방 입장, 모드 선택, 크루·사전·플레이 기록·열린 방
+- 데스크톱 대기실: 실제 참가자와 빈 좌석, 초대 코드, 방장 전용 봇·난이도 조절, 시작 대기
+- 데스크톱 실시간 대전: 참가자·타이머·시작 음절·단어 입력·힌트·피버·단어 궤도
+- 데스크톱 결과: 실제 순위·점수·유효 단어 수와 참가자 캐릭터
+- 모바일 로비: 한 손 조작을 위한 빠른 이동, 가로 스크롤 모드 선택, 접히지 않는 카드와 폼
+- 모바일 대전: 키보드가 열려도 캐릭터·타이머·현재 음절과 입력 액션을 함께 확인
+
+시안의 예시 접속자·점수·네트워크 수치는 실제 운영 자료와 혼동되지 않도록 게임 서버가 제공하는 값만 노출합니다. 제목·도움말·버튼은 한국어 기준선과 행간을 통일하고, 현재 음절에 맞는 조사(예: `마로 시작`, `책으로 시작`)를 표시합니다.
+
 ## 기술 구성
 
 - Java 21, Spring Boot 4.1.1, Spring WebMVC/WebSocket, Jackson 3
@@ -142,6 +155,7 @@ Coders.kr 배포는 `coders.yaml`과 Dockerfile을 사용하며, 배포 후 `/ac
 src/main/java/.../game/       서버 권위형 게임 상태·사전·봇 난이도
 src/main/java/.../web/        REST, WebSocket, 정적 홈 컨트롤러
 src/main/resources/static/    의존성 없는 게임 UI, CSS, 캐릭터 자산
+src/main/resources/static/orbit-redesign.css  Stitch 방향의 6개 반응형 게임 화면
 src/main/resources/static/progression.js  로그인 전 로컬 성장·임무 규칙
 src/main/resources/static/progression.css 패스포트·임무·배지 UI
 src/main/resources/words-ko.txt  검증된 한국어 명사 데이터

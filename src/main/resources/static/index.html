@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
-  <meta name="theme-color" content="#050810">
+  <meta name="theme-color" content="#0b0e17">
   <meta name="description" content="검증된 한국어 명사로만 겨루는 실시간 세글자 끝말잇기. 링크 하나로 우주 궤도에 합류하세요.">
   <meta property="og:title" content="세글자쿵!">
   <meta property="og:description" content="31,000개 이상의 사전 명사로 겨루는 실시간 우주 끝말잇기">
@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/game-input.css?v=20260906-16">
   <link rel="stylesheet" href="/typography.css?v=20260906-16">
   <link rel="stylesheet" href="/progression.css?v=20260914-01">
+  <link rel="stylesheet" href="/orbit-redesign.css?v=20261012-04">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -28,6 +29,11 @@
       <span class="brand-mark" aria-hidden="true"><i></i></span>
       <span class="brand-name"><strong>세글자쿵!</strong><small>KUNG ORBIT</small></span>
     </button>
+    <nav class="top-nav" aria-label="게임 메뉴">
+      <a href="#modeTitle">게임 모드</a>
+      <a href="#dictionaryTitle">단어 검증</a>
+      <a href="#passportTitle">나의 기록</a>
+    </nav>
     <div class="top-actions">
       <span class="live-pill"><i></i> 지금 <span id="onlineCount">0</span>명 플레이</span>
       <button class="icon-button" id="soundButton" type="button" aria-label="배경음악 켜기" aria-pressed="false">
@@ -41,7 +47,7 @@
       <section class="lobby-hero" aria-labelledby="heroTitle">
       <div class="hero-copy">
         <p class="eyebrow"><span>실시간 1–8인</span><span>사전 검증 매치</span></p>
-        <h1 id="heroTitle"><span>세 글자로</span><br><em>우주를 쿵!</em></h1>
+        <h1 id="heroTitle"><span>세 글자로</span><em>우주를 쿵!</em></h1>
         <p class="hero-description">마지막 음절을 이어 단어 궤도를 완성하세요.<br>가짜 단어는 통과 불가—순발력과 어휘력으로 승부합니다.</p>
         <div class="hero-buttons">
           <button class="button button-primary button-xl" id="quickButton" type="button"><span class="play-symbol" aria-hidden="true">▶</span> 3초 만에 시작</button>
@@ -189,6 +195,14 @@
         </aside>
 
         <section class="arena" aria-labelledby="arenaTitle">
+          <section id="waitingStage" class="waiting-stage" aria-labelledby="waitingTitle" hidden>
+            <div class="waiting-orbit" aria-hidden="true"><span id="waitingMascot" class="mascot-sprite"></span><i></i></div>
+            <span class="waiting-kicker">ORBIT STATION · READY CHECK</span>
+            <h2 id="waitingTitle">크루를 기다리고 있어요</h2>
+            <p id="waitingCopyText">친구에게 방 코드를 보내거나 쿵봇을 불러 바로 출발할 수 있어요.</p>
+            <div class="waiting-seat-count"><strong id="waitingSeatCount">0 / 8</strong><span>승무원 탑승</span></div>
+            <ol class="waiting-steps"><li><b>01</b><span>초대 코드 공유</span></li><li><b>02</b><span>크루 탑승 확인</span></li><li><b>03</b><span>게임 시작!</span></li></ol>
+          </section>
           <div class="arena-top">
             <div><span class="mode-dot"></span><b id="gameMode">클래식 쿵</b><small id="gameRule">3글자 · 12초</small></div>
             <div class="round-chip"><small>라운드</small><strong id="roundCount">01</strong></div>
@@ -209,7 +223,7 @@
             </div>
             <div class="turn-copy">
               <p id="turnLabel">게임을 기다리는 중</p>
-              <h1 id="arenaTitle"><span id="requiredSyllable">쿵</span><i>으로 시작!</i></h1>
+              <h1 id="arenaTitle" aria-label="첫 글자 쿵으로 시작하는 단어를 입력하세요"><span id="requiredSyllable" class="syllable-orb">쿵</span><span class="turn-arrow" aria-hidden="true">→</span><i id="turnInstruction">으로 시작!</i></h1>
               <div class="last-word" id="lastWord">방장이 시작하면 첫 글자가 공개돼요</div>
             </div>
             <div class="combo-meter"><small>연속 성공</small><strong id="comboCount">0</strong><span>COMBO</span></div>
@@ -223,11 +237,12 @@
             <span class="fever-track"><i id="feverGaugeFill"></i></span>
           </div>
           <div class="input-dock">
+          <div class="input-prompt"><span class="input-prompt-live" aria-hidden="true"></span><span id="entryPrompt">내 차례에 이어질 단어를 입력하세요</span><kbd aria-hidden="true">ENTER</kbd></div>
           <div class="word-entry">
             <form id="wordForm" class="word-form" autocomplete="off">
               <label class="sr-only" for="wordInput">이어질 단어</label>
               <input id="wordInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send" aria-describedby="inputHint" maxlength="4" placeholder="단어를 입력하세요" disabled>
-              <button class="button button-kung" type="submit" disabled>쿵!</button>
+              <button class="button button-kung" type="submit" aria-keyshortcuts="Enter" aria-label="단어 쿵, Enter 키로 제출" disabled><span id="submitLabel">쿵!</span><kbd aria-hidden="true">↵</kbd></button>
             </form>
             <button class="hint-button" id="hintButton" type="button" disabled><b>힌트</b><span id="hintCount">3</span></button>
           </div>
@@ -246,6 +261,15 @@
             <h2 id="resultTitle">궤도의 주인공!</h2>
             <strong id="resultWinner">승자</strong>
             <p id="resultSummary">멋진 승부였습니다</p>
+            <div class="result-stats" aria-label="이번 경기 기록">
+              <div><strong id="resultRank">-</strong><span>내 순위</span></div>
+              <div><strong id="resultWords">0</strong><span>유효 단어</span></div>
+              <div><strong id="resultPlayers">0</strong><span>참가 크루</span></div>
+            </div>
+            <section class="result-scoreboard" aria-labelledby="resultScoreTitle">
+              <div><h3 id="resultScoreTitle">이번 항로 순위</h3><span>최종 점수</span></div>
+              <ol id="resultRanking"></ol>
+            </section>
           </section>
         </section>
 
@@ -265,12 +289,19 @@
     </section>
   </main>
 
+  <nav class="mobile-dock" aria-label="빠른 이동">
+    <a href="#lobbyScreen"><span aria-hidden="true">⌂</span>로비</a>
+    <a href="#modeTitle"><span aria-hidden="true">◈</span>대결</a>
+    <a href="#dictionaryTitle"><span aria-hidden="true">⌕</span>사전</a>
+    <a href="#passportTitle"><span aria-hidden="true">✦</span>기록</a>
+  </nav>
+
   <footer><span>세글자쿵! · KUNG ORBIT</span><span>무료 · 광고 없음 · 후원 기능 없음</span></footer>
 
   <dialog id="setupDialog" class="setup-dialog">
     <form method="dialog" id="setupForm">
       <button class="dialog-close" value="cancel" aria-label="닫기">×</button>
-      <span class="dialog-kicker">게임 준비</span><h2>플레이할 이름을 정해주세요</h2>
+      <span class="dialog-kicker">게임 준비</span><h2>이름을 선택해 주세요</h2>
       <div class="setup-crew"><span id="setupMascot" class="mascot-sprite" aria-hidden="true"></span><span id="setupCrewName">루미와 함께 출격!</span></div>
       <label for="nicknameInput">검수된 별명</label><select id="nicknameInput" aria-describedby="nicknameHelp"></select>
       <p id="nicknameHelp" class="nickname-help">모두에게 보이는 이름 · 준비된 24개 중 선택</p>
@@ -291,6 +322,6 @@
   <script src="/crew-catalog.js?v=20260906-16" defer></script>
   <script src="/game-input.js?v=20260906-16" defer></script>
   <script src="/progression.js?v=20260914-01" defer></script>
-  <script src="/app.js?v=20260925-01" defer></script>
+  <script src="/app.js?v=20261012-02" defer></script>
 </body>
 </html>

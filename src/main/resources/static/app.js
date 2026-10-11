@@ -3,14 +3,20 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const lobby = $('#lobbyScreen');
+  ['.lobby-hero', '.join-strip', '.mode-section', '.crew-section', '.dictionary-strip', '.passport-section', '.rooms-section', '.promise-strip']
+    .map(selector => $(selector, lobby)).filter(Boolean).forEach(section => lobby.append(section));
   const els = {
     lobby: $('#lobbyScreen'), game: $('#gameScreen'), dialog: $('#setupDialog'), setupForm: $('#setupForm'),
     nickname: $('#nicknameInput'), modePicker: $('#modePicker'), roomCodeInput: $('#roomCodeInput'), roomList: $('#roomList'),
     dictionaryForm: $('#dictionaryForm'), dictionaryInput: $('#dictionaryInput'), dictionaryResult: $('#dictionaryResult'),
     onlineCount: $('#onlineCount'), connection: $('#connectionStatus'), playerList: $('#playerList'), playerCount: $('#playerCount'),
     gameMode: $('#gameMode'), gameRule: $('#gameRule'), round: $('#roundCount'), timerRing: $('#timerRing'), timerText: $('#timerText'),
-    required: $('#requiredSyllable'), turnLabel: $('#turnLabel'), lastWord: $('#lastWord'), combo: $('#comboCount'),
+    required: $('#requiredSyllable'), turnInstruction: $('#turnInstruction'), entryPrompt: $('#entryPrompt'), submitLabel: $('#submitLabel'),
+    arenaTitle: $('#arenaTitle'), turnLabel: $('#turnLabel'), lastWord: $('#lastWord'), combo: $('#comboCount'),
     eventText: $('#eventText'), wordForm: $('#wordForm'), wordInput: $('#wordInput'), inputHint: $('#inputHint'),
+    waitingStage: $('#waitingStage'), waitingMascot: $('#waitingMascot'), waitingSeatCount: $('#waitingSeatCount'), waitingCopyText: $('#waitingCopyText'),
+    resultRank: $('#resultRank'), resultWords: $('#resultWords'), resultPlayers: $('#resultPlayers'), resultRanking: $('#resultRanking'),
     roomCode: $('#roomCode'), roomCodeButton: $('#roomCodeButton'), start: $('#startButton'), rematch: $('#rematchButton'),
     addBot: $('#addBotButton'), waitingCopy: $('#waitingCopy'), controls: $('#gameControls'), lengthRule: $('#lengthRule'),
     history: $('#wordHistory'), historyCount: $('#historyCount'), feverBanner: $('#feverBanner'), arena: $('.arena'), mobileRoomCode: $('#mobileRoomCode'),
@@ -24,6 +30,12 @@
     passportStreak: $('#passportStreak'), passportMissionMeta: $('#passportMissionMeta'), missionList: $('#missionList'), passportBadgeMeta: $('#passportBadgeMeta'), badgeList: $('#badgeList')
   };
   const modeLabels = {classic: '클래식 쿵', speed: '번개 쿵', relay: '릴레이 쿵'};
+  function particleForStart(syllable) {
+    const code = syllable?.codePointAt(0) || 0;
+    if (code < 0xAC00 || code > 0xD7A3) return '으로';
+    const jongseong = (code - 0xAC00) % 28;
+    return jongseong === 0 || jongseong === 8 ? '로' : '으로';
+  }
   const approvedNames = ['별빛', '은하', '달빛', '혜성', '우주', '반짝']
     .flatMap(prefix => ['탐험가', '항해사', '파일럿', '연구원'].map(role => prefix + role));
   els.nickname.replaceChildren(...approvedNames.map(name => new Option(name, name)));
@@ -174,6 +186,13 @@
 
   function renderGame(room) {
     showGame();
+    els.game.dataset.phase = room.phase;
+    els.game.dataset.mode = room.mode.id;
+    els.waitingStage.hidden = room.phase !== 'waiting';
+    els.waitingSeatCount.textContent = `${room.players.length} / 8`;
+    els.waitingCopyText.textContent = room.players.length > 1
+      ? `${room.players.length}명의 크루가 탑승했어요. 모두 준비되면 방장이 출발 버튼을 눌러요.`
+      : '친구에게 방 코드를 보내거나 쿵봇을 불러 바로 출발할 수 있어요.';
     wordEntry.update(room, app.playerId);
     els.roomCode.textContent = room.roomCode;
     els.mobileRoomCode.textContent = room.roomCode;
@@ -183,7 +202,11 @@
     els.round.textContent = String(room.round || 1).padStart(2, '0');
     els.lengthRule.textContent = room.mode.length === '3글자' ? '반드시 세 글자' : `${room.mode.length} 단어`;
     els.playerCount.textContent = `${room.players.length} / 8`;
-    els.required.textContent = room.requiredSyllable || '쿵';
+    const requiredSyllable = room.requiredSyllable || '쿵';
+    const particle = particleForStart(requiredSyllable);
+    els.required.textContent = requiredSyllable;
+    els.turnInstruction.textContent = `${particle} 시작!`;
+    els.arenaTitle.setAttribute('aria-label', `${requiredSyllable}${particle} 시작하는 단어를 입력하세요`);
     els.combo.textContent = room.combo;
     const feverTarget = room.feverTarget || 7;
     const feverProgress = Math.min(100, Math.max(0, room.combo) / feverTarget * 100);
@@ -199,6 +222,7 @@
     const me = room.players.find(player => player.id === app.playerId);
     const current = room.players.find(player => player.id === room.turnPlayerId);
     const isHost = room.hostId === app.playerId;
+    setMascotSprite(els.waitingMascot, app.playerId);
     const myTurn = room.phase === 'playing' && room.turnPlayerId === app.playerId && !me?.eliminated;
     renderCombatant(room, current, me);
     renderResult(room, me);
@@ -208,7 +232,10 @@
     els.hintCount.textContent = hints;
     syncInputControls();
     els.wordInput.maxLength = room.mode.id === 'relay' ? 4 : 3;
-    els.wordInput.placeholder = myTurn ? `‘${room.requiredSyllable}’로 시작하는 사전 명사` : '상대 차례 · 다음 글자를 기다려요';
+    els.wordInput.placeholder = myTurn ? `‘${requiredSyllable}’${particle} 시작하는 사전 명사` : '상대 차례 · 다음 글자를 기다려요';
+    els.entryPrompt.textContent = myTurn ? `${requiredSyllable}${particle} 시작하는 ${room.mode.length} 명사` : room.phase === 'playing' ? `${current?.nickname || '상대'} 차례 · 다음 글자를 준비하세요` : `${room.mode.length} 단어로 출격 준비`;
+    els.submitLabel.textContent = room.mode.id === 'relay' ? '단어 쿵!' : '세글자 쿵!';
+    els.wordForm.querySelector('button').setAttribute('aria-label', `${room.mode.id === 'relay' ? '단어' : '세 글자'} 쿵, Enter 키로 제출`);
     els.wordForm.classList.remove('invalid');
     els.inputHint.classList.remove('invalid');
     els.inputHint.textContent = myTurn ? `${room.mode.length} · 사전에 등록된 명사만 성공` : room.phase === 'playing' ? '상대 차례 · 키보드는 유지되고 다음 차례에 입력이 초기화돼요' : '시작 후 입력창을 눌러 단어를 입력하세요';
@@ -297,7 +324,7 @@
 
   function renderPlayers(room) {
     const isHostWaiting = room.phase === 'waiting' && room.hostId === app.playerId;
-    els.playerList.replaceChildren(...room.players.map((player, index) => {
+    const occupiedSeats = room.players.map(player => {
       const card = document.createElement('div');
       card.className = `player-card${player.id === room.turnPlayerId ? ' active' : ''}${player.eliminated ? ' eliminated' : ''}${!player.connected ? ' disconnected' : ''}`;
       card.dataset.playerId = player.id;
@@ -321,7 +348,20 @@
         remove.dataset.removeBot = player.id; remove.setAttribute('aria-label', `${player.nickname} 삭제`); remove.textContent = '×'; card.append(remove);
       }
       return card;
-    }));
+    });
+    const emptySeats = Array.from({length: Math.max(0, 8 - room.players.length)}, (_, index) => {
+      const seat = document.createElement('div');
+      seat.className = 'player-card player-slot empty-slot';
+      seat.setAttribute('aria-label', `빈 좌석 ${room.players.length + index + 1}`);
+      const plus = document.createElement('span'); plus.className = 'empty-seat-mark'; plus.textContent = '+'; plus.setAttribute('aria-hidden', 'true');
+      const info = document.createElement('span'); info.className = 'player-name';
+      const title = document.createElement('b'); title.textContent = '탑승 대기';
+      const note = document.createElement('small'); note.textContent = '초대 링크로 참가';
+      info.append(title, note);
+      const seatLabel = document.createElement('span'); seatLabel.className = 'seat-number'; seatLabel.textContent = `${String(room.players.length + index + 1).padStart(2, '0')} / 08`;
+      seat.append(plus, info, seatLabel); return seat;
+    });
+    els.playerList.replaceChildren(...occupiedSeats, ...emptySeats);
   }
 
   function renderHistory(history) {
@@ -427,6 +467,20 @@
     els.resultKicker.textContent = winner.id === app.playerId ? 'YOU RULE THE ORBIT' : 'MISSION COMPLETE';
     els.resultWinner.textContent = winner.nickname;
     els.resultSummary.textContent = `${winner.score.toLocaleString()}점 · ${winner.wins}승 달성`;
+    const ranking = [...room.players].sort((left, right) => right.score - left.score);
+    const myRank = ranking.findIndex(player => player.id === app.playerId);
+    els.resultRank.textContent = myRank < 0 ? '관전' : `${myRank + 1}위`;
+    els.resultWords.textContent = String(room.history?.length || 0);
+    els.resultPlayers.textContent = `${room.players.length}명`;
+    els.resultRanking.replaceChildren(...ranking.map((player, index) => {
+      const item = document.createElement('li');
+      item.className = player.id === app.playerId ? 'result-player mine' : 'result-player';
+      const position = document.createElement('span'); position.className = 'result-position'; position.textContent = String(index + 1).padStart(2, '0');
+      const avatar = document.createElement('span'); avatar.className = 'result-avatar mascot-sprite'; avatar.setAttribute('aria-hidden', 'true'); setMascotSprite(avatar, player.id);
+      const name = document.createElement('span'); name.className = 'result-player-name'; name.textContent = `${player.nickname}${player.id === app.playerId ? ' · 나' : ''}`;
+      const score = document.createElement('b'); score.textContent = `${player.score.toLocaleString()}점`;
+      item.append(position, avatar, name, score); return item;
+    }));
     els.result.hidden = false;
     els.result.classList.toggle('mine', winner.id === app.playerId && Boolean(me));
   }
