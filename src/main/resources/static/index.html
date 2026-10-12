@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0e17">
   <meta name="description" content="검증된 한국어 명사로만 겨루는 실시간 세글자 끝말잇기. 링크 하나로 우주 궤도에 합류하세요.">
   <meta property="og:title" content="세글자쿵!">
-  <meta property="og:description" content="31,000개 이상의 사전 명사로 겨루는 실시간 우주 끝말잇기">
+  <meta property="og:description" content="서버 사전으로 검증하는 실시간 우주 끝말잇기">
   <meta property="og:type" content="website">
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/typography.css?v=20260906-16">
   <link rel="stylesheet" href="/progression.css?v=20260914-01">
   <link rel="stylesheet" href="/orbit-redesign.css?v=20261012-04">
+  <link rel="stylesheet" href="/stitch-ui.css?v=20261012-01">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -50,7 +51,7 @@
         <h1 id="heroTitle"><span>세 글자로</span><em>우주를 쿵!</em></h1>
         <p class="hero-description">마지막 음절을 이어 단어 궤도를 완성하세요.<br>가짜 단어는 통과 불가—순발력과 어휘력으로 승부합니다.</p>
         <div class="hero-buttons">
-          <button class="button button-primary button-xl" id="quickButton" type="button"><span class="play-symbol" aria-hidden="true">▶</span> 3초 만에 시작</button>
+          <button class="button button-primary button-xl" id="quickButton" type="button"><span class="play-symbol" aria-hidden="true">▶</span> 빠른 매칭 시작</button>
           <button class="button button-ghost button-xl" id="createButton" type="button">친구 방 만들기</button>
         </div>
         <p class="microcopy"><i></i> 가입 없음 <b>·</b> 완전 무료 <b>·</b> 광고와 결제 없음</p>
@@ -59,13 +60,13 @@
       <div class="hero-stage" aria-label="세글자쿵 게임 규칙 미리보기">
         <span class="hero-mascot mascot-sprite" id="heroMascot" aria-hidden="true"></span>
         <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
-        <div class="stage-coord coord-a">ROUND 03</div>
-        <div class="stage-coord coord-b">12초 안에 입력!</div>
-        <div class="demo-card demo-left"><small>방금 단어</small><strong>고구마</strong><span>다음 글자 · 마</span></div>
-        <div class="demo-kung"><small>7 COMBO</small><span>쿵!</span><b>+240</b></div>
-        <div class="demo-card demo-right"><small>완벽한 연결</small><strong>마법사</strong><span>다음 글자 · 사</span></div>
+        <div class="stage-coord coord-a">플레이 예시</div>
+        <div class="stage-coord coord-b">서버 사전으로 검증</div>
+        <div class="demo-card demo-left"><small>이전 단어</small><strong>고구마</strong><span>마지막 음절 · 마</span></div>
+        <div class="demo-kung"><small>다음 시작 음절</small><span>마</span><b>→</b></div>
+        <div class="demo-card demo-right"><small>이어지는 단어</small><strong>마법사</strong><span>세 글자 명사</span></div>
         <div class="float-tag tag-one">✓ 사전 인증</div>
-        <div class="float-tag tag-two">🔥 피버 ×2</div>
+        <div class="float-tag tag-two">3글자 연결</div>
       </div>
       </section>
 
@@ -175,9 +176,9 @@
       </section>
 
       <section class="promise-strip" aria-label="게임 특징">
-        <div><strong>31,484</strong><span>검증된 한국어 명사</span></div>
+        <div><strong>31,000+</strong><span>서버 사전 수록 명사</span></div>
         <div><strong>0원</strong><span>설치와 결제 없이</span></div>
-        <div><strong>100%</strong><span>실력으로만 승부</span></div>
+        <div><strong>실시간</strong><span>턴마다 서버에서 판정</span></div>
         <div><strong>자동 복귀</strong><span>끊겨도 게임은 이어서</span></div>
       </section>
     </section>

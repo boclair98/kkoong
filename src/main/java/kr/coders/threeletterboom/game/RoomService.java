@@ -36,7 +36,7 @@ public class RoomService {
     private final Map<String, Location> sessionLocations = new ConcurrentHashMap<>();
     private final Map<String, Long> reactionTimes = new ConcurrentHashMap<>();
     private final ScheduledExecutorService ticker = Executors.newSingleThreadScheduledExecutor(
-            Thread.ofPlatform().name("game-ticker").factory());
+            task -> new Thread(task, "game-ticker"));
     private final Random random = new Random();
 
     public RoomService(JsonMapper json, WordDictionary dictionary) {
@@ -275,7 +275,7 @@ public class RoomService {
         room.requiredSyllable = WordDictionary.lastSyllable(word);
         room.usedWords.add(word);
         room.history.add(new GameRoom.WordPlay(player.id, player.nickname, word, points, System.currentTimeMillis()));
-        if (room.history.size() > 30) room.history.removeFirst();
+        if (room.history.size() > 30) room.history.remove(0);
         room.eventText = player.nickname + " +" + points + " · 사전 인증";
         advanceTurn(room);
     }

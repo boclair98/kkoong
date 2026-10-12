@@ -59,7 +59,7 @@ Google Stitch의 KUNG ORBIT 시안에서 제시한 우주 아케이드 방향을
 
 ## 기술 구성
 
-- Java 21, Spring Boot 4.1.1, Spring WebMVC/WebSocket, Jackson 3
+- Java 17, Spring Boot 4.1.1, Spring WebMVC/WebSocket, Jackson 3
 - 의존성 없는 HTML/CSS/JavaScript 프런트엔드(한 개의 Spring JAR에서 제공)
 - coders.kr native gate의 `X-Coders-User`를 지원하며, 익명 사용자는 WebSocket 연결 범위의 임시 ID 사용
 - 정적 자산 장기 캐시, HTTP 압축, WebSocket 3,600초 timeout, 자동 재연결
@@ -155,7 +155,8 @@ Coders.kr 배포는 `coders.yaml`과 Dockerfile을 사용하며, 배포 후 `/ac
 src/main/java/.../game/       서버 권위형 게임 상태·사전·봇 난이도
 src/main/java/.../web/        REST, WebSocket, 정적 홈 컨트롤러
 src/main/resources/static/    의존성 없는 게임 UI, CSS, 캐릭터 자산
-src/main/resources/static/orbit-redesign.css  Stitch 방향의 6개 반응형 게임 화면
+src/main/resources/static/orbit-redesign.css  반응형 게임 레이아웃과 모바일 키보드 대응
+src/main/resources/static/stitch-ui.css       Cosmic Orbit Arcade 디자인 토큰과 6개 화면 스타일
 src/main/resources/static/progression.js  로그인 전 로컬 성장·임무 규칙
 src/main/resources/static/progression.css 패스포트·임무·배지 UI
 src/main/resources/words-ko.txt  검증된 한국어 명사 데이터
