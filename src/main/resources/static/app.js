@@ -46,7 +46,7 @@
   const app = {
     socket: null, connecting: null, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
     nickname: approvedNames.includes(localStorage.getItem('segulja-nickname')) ? localStorage.getItem('segulja-nickname') : '', desiredRoom: null, setupIntent: null, pendingCode: '',
-    pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') === 'on',
+    pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') !== 'off',
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
     crewFilter: 'all', crewPage: 0, crewNotice: '',
     lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false,
@@ -794,6 +794,7 @@
   function updateSoundButton() {
     els.sound.setAttribute('aria-pressed', String(app.sound));
     els.sound.setAttribute('aria-label', app.sound ? '배경음악 끄기' : '배경음악 켜기');
+    els.sound.title = app.sound ? 'BGM 기본 켜짐 · 화면을 한 번 누르면 재생돼요' : 'BGM 꺼짐 · 눌러서 다시 켤 수 있어요';
     els.soundLabel.textContent = app.sound ? 'BGM ON' : 'BGM OFF';
     document.body.classList.toggle('music-on', app.sound);
   }
@@ -983,7 +984,10 @@
   window.visualViewport?.addEventListener('resize', updateInputViewport, {passive: true});
   window.visualViewport?.addEventListener('scroll', updateInputViewport, {passive: true});
   window.addEventListener('pageshow', () => { wordEntry.reset(); updateInputViewport(); });
-  const unlockAudio = () => { if (app.sound) { ensureAudio(); setMusicState(app.room); } };
+  const unlockAudio = event => {
+    const togglingSound = event.target instanceof Element && event.target.closest('#soundButton');
+    if (app.sound && !togglingSound) { ensureAudio(); setMusicState(app.room); }
+  };
   window.addEventListener('pointerdown', unlockAudio, {once: true, capture: true});
   window.addEventListener('keydown', unlockAudio, {once: true, capture: true});
   document.addEventListener('visibilitychange', () => {

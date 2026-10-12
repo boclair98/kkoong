@@ -380,6 +380,82 @@ footer { min-height: 70px; color: #8290a7; line-height: 1.5; }
   .reactions button { min-width: 35px; }
 }
 
+/* Mobile game controls stay in the roster flow; keyboard mode keeps the turn readable. */
+@media (max-width: 760px) {
+  .players-panel .button {
+    position: static;
+    inset: auto;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 8px;
+    padding-inline: 12px;
+    font-size: 11px;
+  }
+  .players-panel .player-list,
+  .players-panel:has(#addBotButton:not([hidden])) .player-list { padding-right: 0; }
+
+  .game-input-active .game-shell { grid-template-rows: 42px minmax(0, 1fr); gap: 4px; }
+  .game-input-active .players-panel { padding: 2px 4px; }
+  .game-input-active .player-list { height: 38px; }
+  .game-input-active .player-card { min-width: 104px; }
+  .game-input-active .arena {
+    padding: 5px 7px 4px;
+    grid-template-rows: auto minmax(98px, 1fr) auto auto auto;
+    gap: 2px;
+  }
+  .game-input-active .arena-top { min-height: 24px; padding-bottom: 3px; }
+  .game-input-active .arena-top b { font-size: 10px; }
+  .game-input-active .beat-zone { min-height: 98px; grid-template-columns: 54px minmax(0, 1fr) 33px; gap: 4px; }
+  .game-input-active .combatant-stage { min-height: 88px; }
+  .game-input-active .mascot-frame { width: 48px; }
+  .game-input-active .combatant-name { display: flex; width: 100%; min-height: 20px; margin-top: 0; padding: 2px; }
+  .game-input-active .combatant-name strong { font-size: 8px; line-height: 1.25; }
+  .game-input-active .combatant-name small { display: none; }
+  .game-input-active .combatant-stage .timer-ring { width: 42px; height: 42px; margin-top: 1px; }
+  .game-input-active .combatant-stage .timer-ring::before { width: 36px; }
+  .game-input-active .timer-core strong { font-size: 12px; }
+  .game-input-active .timer-core small,
+  .game-input-active .timer-core span { font-size: 7px; }
+  .game-input-active .turn-copy { gap: 2px; }
+  .game-input-active .turn-copy > p { font-size: 9px; }
+  .game-input-active .turn-copy h1 { min-height: 52px; gap: 4px; }
+  .game-input-active .turn-copy h1 .syllable-orb { width: 44px; font-size: 30px; }
+  .game-input-active .turn-copy h1 .turn-arrow { font-size: 13px; }
+  .game-input-active .turn-copy h1 i { max-width: 76px; font-size: 9px; }
+  .game-input-active .last-word { padding: 3px 5px; font-size: 8px; }
+  .game-input-active .combo-meter { min-width: 30px; padding: 3px 2px; }
+  .game-input-active .combo-meter small,
+  .game-input-active .combo-meter span { font-size: 6px; }
+  .game-input-active .combo-meter strong { font-size: 17px; }
+  .game-input-active .feedback-rail { min-height: 38px; margin: 1px 0; }
+  .game-input-active .feedback-rail .event-text { padding: 4px; font-size: 9px; }
+  .game-input-active .feedback-rail .impact-card { min-height: 38px; }
+  .game-input-active .feedback-rail .impact-mascot { width: 30px; height: 30px; }
+  .game-input-active .feedback-rail .impact-copy strong { font-size: 16px; }
+  .game-input-active .feedback-rail .impact-copy > span { font-size: 8px; }
+  .game-input-active .fever-gauge { display: none; }
+  .game-input-active .input-dock {
+    position: sticky;
+    bottom: 0;
+    padding: 5px 6px max(5px, env(safe-area-inset-bottom));
+    border: 1px solid rgba(0, 224, 241, .22);
+    border-radius: 12px 12px 0 0;
+    background: rgba(10, 18, 31, .98);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, .2);
+  }
+  .game-input-active .input-prompt { min-height: 18px; margin: 0 2px 3px; font-size: 9px; }
+  .game-input-active .word-entry { grid-template-columns: minmax(0, 1fr) 46px; gap: 5px; }
+  .game-input-active .word-form { grid-template-columns: minmax(0, 1fr) 58px; gap: 3px; padding: 3px; }
+  .game-input-active .word-form input { min-height: 46px; padding-inline: 9px; font-size: 16px; }
+  .game-input-active .button-kung { min-width: 58px; min-height: 44px; font-size: 12px; }
+  .game-input-active #submitLabel { font-size: 9px; white-space: nowrap; }
+  .game-input-active .hint-button { min-width: 44px; min-height: 46px; }
+  .game-input-active .input-hint { min-height: 13px; margin: 3px 2px 0; font-size: 8px; }
+
+  .game-input-short .game-shell { grid-template-rows: minmax(0, 1fr); grid-template-areas: "arena"; }
+  .game-input-short .arena { grid-template-rows: auto minmax(98px, 1fr) auto auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-mascot, .orbit, .demo-kung::before, .mascot-frame::after { animation: none; }
 }
