@@ -5,3 +5,16 @@ target
 *.iml
 HELP.md
 README.md
+
+# The Spring Boot image only needs pom.xml and src/. Keep design source,
+# duplicated frontend assets, and local tooling out of the Docker context.
+art-source/
+segulja-kkung/
+third-party/
+tools/
+.mvn/
+mvnw
+mvnw.cmd
+coders.yaml
+.gitattributes
+.gitignore
