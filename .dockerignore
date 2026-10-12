@@ -15,6 +15,5 @@ tools/
 .mvn/
 mvnw
 mvnw.cmd
-coders.yaml
 .gitattributes
 .gitignore
