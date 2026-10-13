@@ -78,7 +78,13 @@ public class RoomService {
     }
 
     public List<Map<String, Object>> lobbyRooms() {
-        return rooms.values().stream().filter(room -> !room.duelQueue && room.phase == GameRoom.Phase.WAITING)
+        return rooms.values().stream().filter(room -> {
+                    synchronized (room) {
+                        return !room.duelQueue && room.phase == GameRoom.Phase.WAITING
+                                && room.players.size() < MAX_PLAYERS
+                                && room.players.values().stream().anyMatch(player -> !player.bot && player.connected);
+                    }
+                })
                 .sorted(Comparator.comparing(room -> room.createdAt))
                 .limit(12)
                 .map(room -> {

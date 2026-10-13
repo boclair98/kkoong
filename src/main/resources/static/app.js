@@ -44,12 +44,12 @@
   const savedMascot = Number(localStorage.getItem('segulja-mascot'));
 
   const app = {
-    socket: null, connecting: null, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
+    socket: null, reconnectTimer: null, awaitingState: true, loadingLobby: false, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
     nickname: approvedNames.includes(localStorage.getItem('segulja-nickname')) ? localStorage.getItem('segulja-nickname') : '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') !== 'off',
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
     crewFilter: 'all', crewPage: 0, crewNotice: '',
-    lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false,
+    lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false, impactSerial: 0,
     feedbackTimers: new Set(), lastFever: false, lastTurn: null
   };
   const wordEntry = new KungInput.WordInput(els.wordInput, {now: () => Date.now() + app.serverOffset});
@@ -69,42 +69,40 @@
   }
 
   function connect() {
-    if (app.socket?.readyState === WebSocket.OPEN) return Promise.resolve(app.socket);
-    if (app.connecting) return app.connecting;
-    setConnection(false, '연결 중');
-    app.connecting = new Promise((resolve, reject) => {
-      const socket = new WebSocket(socketUrl());
-      app.socket = socket;
-      const timeout = setTimeout(() => reject(new Error('connection timeout')), 9000);
-      socket.onopen = () => {
-        clearTimeout(timeout); app.connecting = null; app.reconnectAttempt = 0; setConnection(true, '연결됨');
-        // Rejoin synchronously before releasing queued actions. Otherwise a word
-        // submitted during a reconnect can reach the server before room recovery.
-        if (app.desiredRoom) socket.send(JSON.stringify({
-          type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId, mascot: app.mascot
-        }));
-        resolve(socket);
-      };
-      socket.onmessage = event => handleMessage(JSON.parse(event.data));
-      socket.onerror = () => { clearTimeout(timeout); app.connecting = null; reject(new Error('socket error')); };
-      socket.onclose = () => {
-        clearTimeout(timeout); app.connecting = null; setConnection(false, '재연결 중');
-        wordEntry.reset(); syncInputControls();
-        if (app.desiredRoom) {
-          const delay = Math.min(7000, 700 * 2 ** app.reconnectAttempt++);
-          setTimeout(() => connect().catch(() => {}), delay);
-        }
-      };
-    });
-    return app.connecting;
+    clearTimeout(app.reconnectTimer); app.reconnectTimer = null;
+    if (app.socket?.readyState !== WebSocket.OPEN) setConnection(false, '연결 중');
+    return transport.connect();
   }
+
+  const transport = new KungClient.SocketConnection({
+    createSocket: () => new WebSocket(socketUrl()),
+    onSocket: socket => { app.socket = socket; },
+    onOpen: socket => {
+      app.reconnectAttempt = 0; app.awaitingState = true; setConnection(true, '연결됨');
+      if (app.desiredRoom) socket.send(JSON.stringify({
+        type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId, mascot: app.mascot
+      }));
+    },
+    onMessage: payload => handleMessage(JSON.parse(payload)),
+    onClose: () => {
+      app.awaitingState = true; setConnection(false, '재연결 중');
+      wordEntry.reset(); syncInputControls();
+      if (app.desiredRoom) {
+        const delay = Math.min(7000, 700 * 2 ** app.reconnectAttempt++);
+        app.reconnectTimer = setTimeout(() => { if (app.desiredRoom) connect().catch(() => {}); }, delay);
+      }
+    }
+  });
 
   async function send(message) {
     try {
       const socket = await connect();
       socket.send(JSON.stringify(message));
-    } catch {
-      toast('서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요');
+    } catch (error) {
+      if (error?.message !== 'connection cancelled') {
+        console.warn('Game connection failed:', error?.message);
+        toast('서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요');
+      }
     }
   }
 
@@ -124,6 +122,7 @@
       return;
     }
     if (message.type === 'state') {
+      app.awaitingState = false;
       clearTimeout(toast.timer);
       els.toast.classList.remove('show');
       app.serverOffset = message.serverTime - Date.now();
@@ -165,7 +164,7 @@
         els.inputHint.classList.add('invalid');
         els.inputHint.textContent = message.message;
       }
-      if (['ROOM_NOT_FOUND', 'GAME_STARTED', 'GAME_FINISHED', 'ROOM_FULL'].includes(message.code) && !app.room) goHome();
+      if (['ROOM_NOT_FOUND', 'GAME_STARTED', 'GAME_FINISHED', 'ROOM_FULL'].includes(message.code) && (app.awaitingState || !app.room)) goHome();
     }
   }
 
@@ -175,11 +174,13 @@
   }
 
   function goHome() {
-    if (app.room) send({type: 'leave'});
+    if (app.room && app.socket?.readyState === WebSocket.OPEN) {
+      try { app.socket.send(JSON.stringify({type: 'leave'})); } catch { /* close also leaves the room */ }
+    }
     app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastPlayAt = 0; app.lastTurn = null; app.lastFever = false; app.crewNotice = '';
     app.previousLives.clear(); resetFeedback(); els.result.hidden = true;
     wordEntry.update(null, app.playerId); els.wordForm.classList.remove('invalid'); updateInputViewport();
-    app.socket?.close(); app.socket = null;
+    clearTimeout(app.reconnectTimer); app.reconnectTimer = null; app.awaitingState = true; transport.close();
     history.replaceState({}, '', location.pathname);
     els.game.hidden = true; els.lobby.hidden = false; setMusicState(null); loadLobby();
   }
@@ -196,6 +197,7 @@
     wordEntry.update(room, app.playerId);
     els.roomCode.textContent = room.roomCode;
     els.mobileRoomCode.textContent = room.roomCode;
+    $('#waitingRoomCode').textContent = room.roomCode;
     els.gameMode.textContent = modeLabels[room.mode.id] || room.mode.label;
     const currentSeconds = room.mode.currentTurnSeconds || room.mode.turnSeconds;
     els.gameRule.textContent = `${room.mode.length} · ${currentSeconds}초${room.mode.tempoStage ? ` · 속도 ${room.mode.tempoStage + 1}` : ''}`;
@@ -213,7 +215,7 @@
     els.feverGaugeFill.style.width = `${room.fever ? 100 : feverProgress}%`;
     els.feverGaugeLabel.textContent = room.fever ? 'FEVER ×2' : `${Math.min(room.combo, feverTarget)} / ${feverTarget}`;
     els.eventText.textContent = room.eventText || '';
-    els.lastWord.textContent = room.lastWord ? `방금 단어 · ${room.lastWord} → 다음 ‘${room.requiredSyllable}’` : '게임이 시작되면 첫 글자가 공개돼요';
+    els.lastWord.textContent = room.lastWord ? `방금 단어 · ${room.lastWord} → 다음 ‘${room.requiredSyllable}’` : room.phase === 'playing' ? `첫 단어를 기다려요 · 시작 글자 ‘${requiredSyllable}’` : '게임이 시작되면 첫 글자가 공개돼요';
     els.arena.classList.toggle('fever', room.fever);
     setMusicState(room);
     renderPlayers(room);
@@ -349,7 +351,7 @@
       }
       return card;
     });
-    const emptySeats = Array.from({length: Math.max(0, 8 - room.players.length)}, (_, index) => {
+    const emptySeats = Array.from({length: room.phase === 'waiting' ? Math.max(0, 8 - room.players.length) : 0}, (_, index) => {
       const seat = document.createElement('div');
       seat.className = 'player-card player-slot empty-slot';
       seat.setAttribute('aria-label', `빈 좌석 ${room.players.length + index + 1}`);
@@ -461,16 +463,14 @@
       els.result.hidden = true;
       return;
     }
-    const winner = room.players.find(player => player.id === room.winnerId);
-    if (!winner) return;
-    setMascotSprite(els.resultMascot, winner.id);
-    els.resultKicker.textContent = winner.id === app.playerId ? 'YOU RULE THE ORBIT' : 'MISSION COMPLETE';
-    els.resultWinner.textContent = winner.nickname;
-    els.resultSummary.textContent = `${winner.score.toLocaleString()}점 · ${winner.wins}승 달성`;
-    const ranking = [...room.players].sort((left, right) => right.score - left.score);
-    const myRank = ranking.findIndex(player => player.id === app.playerId);
-    els.resultRank.textContent = myRank < 0 ? '관전' : `${myRank + 1}위`;
-    els.resultWords.textContent = String(room.history?.length || 0);
+    const {winner, ranking, myRank, myWords} = KungClient.summarizeResult(room, app.playerId);
+    setMascotSprite(els.resultMascot, winner?.id || app.playerId);
+    els.resultKicker.textContent = winner?.id === app.playerId ? 'YOU RULE THE ORBIT' : 'MISSION COMPLETE';
+    $('#resultTitle').textContent = winner ? '궤도의 주인공!' : '이번 판은 무승부';
+    els.resultWinner.textContent = winner?.nickname || '다음 항로에서 만나요';
+    els.resultSummary.textContent = winner ? `${winner.score.toLocaleString()}점 · ${winner.wins}승 달성` : '새 게임에서 다시 도전할 수 있어요';
+    els.resultRank.textContent = myRank === null ? '관전' : `${myRank}위`;
+    els.resultWords.textContent = String(myWords);
     els.resultPlayers.textContent = `${room.players.length}명`;
     els.resultRanking.replaceChildren(...ranking.map((player, index) => {
       const item = document.createElement('li');
@@ -482,7 +482,7 @@
       item.append(position, avatar, name, score); return item;
     }));
     els.result.hidden = false;
-    els.result.classList.toggle('mine', winner.id === app.playerId && Boolean(me));
+    els.result.classList.toggle('mine', winner?.id === app.playerId && Boolean(me));
   }
 
   function processMatchFeedback(room) {
@@ -528,12 +528,16 @@
 
   function resetFeedback() {
     app.feedbackTimers.forEach(clearTimeout); app.feedbackTimers.clear();
-    app.impactQueue.length = 0; app.impactBusy = false;
+    app.impactQueue.length = 0; app.impactBusy = false; app.impactSerial++;
     els.impactLayer.replaceChildren(); els.reactionLayer.replaceChildren();
     els.arena.classList.remove('success-flash', 'damage-flash', 'start-flash');
   }
 
   function showImpact(kind, title, detail, badge = '', playerId = '', mine = false) {
+    if (kind === 'success' && els.impactLayer.firstElementChild?.classList.contains('reject')) {
+      app.impactSerial++; app.impactBusy = false; app.impactQueue.length = 0;
+      els.impactLayer.replaceChildren();
+    }
     // Repeated submissions must not build a backlog that outlives the turn.
     if (kind === 'reject') app.impactQueue = app.impactQueue.filter(item => item.kind !== 'reject');
     if (app.impactQueue.length >= 2) app.impactQueue.shift();
@@ -544,6 +548,7 @@
   function pumpImpact() {
     if (app.impactBusy || !app.impactQueue.length) return;
     app.impactBusy = true;
+    const serial = ++app.impactSerial;
     const notice = app.impactQueue.shift();
     const card = document.createElement('div');
     card.className = `impact-card ${notice.kind}${notice.mine ? ' mine' : ''}`;
@@ -562,8 +567,10 @@
     requestAnimationFrame(() => { if (card.isConnected) card.classList.add('show'); });
     const duration = notice.kind === 'miss' || notice.kind === 'reject' ? 1450 : 1150;
     feedbackLater(() => {
+      if (serial !== app.impactSerial) return;
       card.classList.add('exit');
       feedbackLater(() => {
+        if (serial !== app.impactSerial) return;
         card.remove(); app.impactBusy = false; pumpImpact();
       }, 260);
     }, duration);
@@ -616,10 +623,15 @@
   }
 
   async function loadLobby() {
+    if (app.loadingLobby) return;
+    app.loadingLobby = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const response = await fetch('/api/lobby', {cache: 'no-store'});
-      if (!response.ok) return;
+      const response = await fetch('/api/lobby', {cache: 'no-store', signal: controller.signal});
+      if (!response.ok) throw new Error('lobby unavailable');
       const data = await response.json();
+      $('#lobbyStatus').hidden = true;
       els.onlineCount.textContent = data.stats.connectedPlayers || 0;
       if (!data.rooms.length) {
         els.roomList.innerHTML = '<div class="empty-room"><span>◌</span><p>열린 게임이 없어요. 첫 번째 방을 만들어 보세요!</p></div>';
@@ -629,10 +641,13 @@
         const button = document.createElement('button'); button.className = 'room-card'; button.type = 'button'; button.dataset.room = room.code;
         const top = document.createElement('div'); const code = document.createElement('strong'); code.textContent = room.code;
         const mode = document.createElement('b'); mode.textContent = room.modeLabel; top.append(code, mode);
-        const people = document.createElement('p'); people.textContent = `${room.players}명 플레이 중${room.bots ? ` · 쿵봇 ${room.bots}` : ''} · 입장 가능`;
+        const people = document.createElement('p'); people.textContent = `${room.players}명 대기 중${room.bots ? ` · 쿵봇 ${room.bots}` : ''} · 입장 가능`;
         button.append(top, people); return button;
       }));
-    } catch { /* cold start while polling is harmless */ }
+    } catch {
+      $('#lobbyStatus').hidden = false;
+      $('#lobbyStatus').textContent = '방 목록을 불러오지 못했어요. 새로고침하면 다시 확인할 수 있어요.';
+    } finally { clearTimeout(timeout); app.loadingLobby = false; }
   }
 
   function openSetup(intent, {mode = 'classic', code = ''} = {}) {
@@ -871,7 +886,7 @@
     els.dialog.close(); launch(app.setupIntent, {mode: app.pendingMode, code: app.pendingCode});
   });
   function syncInputControls() {
-    const connected = app.socket?.readyState === WebSocket.OPEN;
+    const connected = app.socket?.readyState === WebSocket.OPEN && !app.awaitingState;
     els.wordForm.querySelector('button').disabled = !connected || !wordEntry.canSubmit;
     els.wordForm.setAttribute('aria-busy', String(wordEntry.pending));
     const hints = app.room?.players.find(player => player.id === app.playerId)?.hints ?? 0;
@@ -880,7 +895,7 @@
 
   function submitWord(explicitPointer = false) {
     // Never queue a turn-sensitive word to be replayed after a reconnect.
-    if (app.socket?.readyState !== WebSocket.OPEN) {
+    if (app.socket?.readyState !== WebSocket.OPEN || app.awaitingState) {
       wordEntry.reset(); syncInputControls(); toast('재연결 중이에요. 연결되면 새 단어를 입력해 주세요'); return;
     }
     const word = wordEntry.takeWord(explicitPointer);
@@ -904,7 +919,7 @@
     els.inputHint.classList.remove('invalid');
   });
   els.hint.addEventListener('click', () => {
-    if (app.socket?.readyState !== WebSocket.OPEN || !wordEntry.requestHint()) return;
+    if (app.socket?.readyState !== WebSocket.OPEN || app.awaitingState || !wordEntry.requestHint()) return;
     els.wordInput.focus({preventScroll: true});
     try { app.socket.send(JSON.stringify({type: 'hint'})); }
     catch { wordEntry.reject(); toast('힌트를 요청하지 못했어요. 다시 시도해 주세요'); }
@@ -932,13 +947,18 @@
   }));
 
   async function shareRoom() {
+    if (!app.room) return;
     const url = `${location.origin}${location.pathname}?room=${app.room?.roomCode || ''}`;
     try {
       if (navigator.share) await navigator.share({title: '세글자쿵! 같이 하자', text: `방 코드 ${app.room.roomCode} · 지금 바로 쿵!`, url});
       else { await navigator.clipboard.writeText(url); toast('초대 링크를 복사했어요!'); }
-    } catch (error) { if (error?.name !== 'AbortError') toast('주소창의 링크를 복사해 친구에게 보내 주세요'); }
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      const link = $('#shareLink'); link.value = url;
+      $('#shareDialog').showModal(); link.focus({preventScroll: true}); link.select();
+    }
   }
-  $('#shareButton').addEventListener('click', shareRoom); $('#mobileShareButton').addEventListener('click', shareRoom); els.roomCodeButton.addEventListener('click', shareRoom);
+  $('#shareButton').addEventListener('click', shareRoom); $('#waitingShareButton').addEventListener('click', shareRoom); $('#mobileShareButton').addEventListener('click', shareRoom); els.roomCodeButton.addEventListener('click', shareRoom);
   setMusicState(null); updateSoundButton();
   els.sound.addEventListener('click', async () => {
     app.sound = !app.sound; localStorage.setItem('segulja-sound', app.sound ? 'on' : 'off');

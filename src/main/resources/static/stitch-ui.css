@@ -381,7 +381,24 @@ footer { min-height: 70px; color: #8290a7; line-height: 1.5; }
 }
 
 /* Mobile game controls stay in the roster flow; keyboard mode keeps the turn readable. */
+.submit-label-short { display: none; }
+.waiting-invite { width: min(100%, 280px); min-height: 74px; margin-top: 18px; padding: 10px 16px; display: grid; gap: 3px; border: 1px solid #00e8f540; border-radius: 14px; color: var(--ink); background: #102b3c; cursor: pointer; }
+.waiting-invite strong { color: var(--cyan); font: 800 23px/1.2 var(--font-mono); letter-spacing: .14em; }
+.waiting-invite span, .waiting-invite small { color: #b6c9dd; font-size: 11px; }
+.waiting-invite:hover { border-color: var(--cyan); }
+.waiting-exit { min-height: 44px; margin-top: 8px; }
+.result-home { grid-column: 1; justify-self: center; min-height: 44px; margin-top: 8px; }
+.room-list-status { color: #f2cc91; font-size: 12px; line-height: 1.6; }
 @media (max-width: 760px) {
+  .button-kung #submitLabel { display: none; }
+  .game-input-active .topbar { display: none; }
+  .mobile-room-button { min-height: 44px; }
+  .button-kung .submit-label-short { display: inline; font-size: 16px; white-space: nowrap; }
+  .player-card:has(.remove-bot) { min-width: 212px; padding-right: 52px; }
+  .player-card .remove-bot { top: calc(50% - 22px); right: 4px; width: 44px; height: 44px; border-radius: 10px; font-size: 20px; }
+  .waiting-stage p, .waiting-steps li, .input-prompt, .input-hint, .turn-copy > p, .last-word { font-size: 11px; }
+  .difficulty-picker > small, .difficulty-picker button b, .difficulty-picker button span { font-size: 11px; }
+  .reactions button { min-width: 44px; min-height: 44px; height: 44px; }
   .players-panel .button {
     position: static;
     inset: auto;
@@ -400,16 +417,16 @@ footer { min-height: 70px; color: #8290a7; line-height: 1.5; }
   .game-input-active .player-card { min-width: 104px; }
   .game-input-active .arena {
     padding: 5px 7px 4px;
-    grid-template-rows: auto minmax(98px, 1fr) auto auto auto;
+    grid-template-rows: auto minmax(112px, 1fr) auto auto auto;
     gap: 2px;
   }
   .game-input-active .arena-top { min-height: 24px; padding-bottom: 3px; }
   .game-input-active .arena-top b { font-size: 10px; }
-  .game-input-active .beat-zone { min-height: 98px; grid-template-columns: 54px minmax(0, 1fr) 33px; gap: 4px; }
-  .game-input-active .combatant-stage { min-height: 88px; }
+  .game-input-active .beat-zone { min-height: 112px; grid-template-columns: 54px minmax(0, 1fr) 33px; gap: 4px; }
+  .game-input-active .combatant-stage { min-height: 102px; }
   .game-input-active .mascot-frame { width: 48px; }
   .game-input-active .combatant-name { display: flex; width: 100%; min-height: 20px; margin-top: 0; padding: 2px; }
-  .game-input-active .combatant-name strong { font-size: 8px; line-height: 1.25; }
+  .game-input-active .combatant-name strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.25; }
   .game-input-active .combatant-name small { display: none; }
   .game-input-active .combatant-stage .timer-ring { width: 42px; height: 42px; margin-top: 1px; }
   .game-input-active .combatant-stage .timer-ring::before { width: 36px; }
@@ -417,18 +434,18 @@ footer { min-height: 70px; color: #8290a7; line-height: 1.5; }
   .game-input-active .timer-core small,
   .game-input-active .timer-core span { font-size: 7px; }
   .game-input-active .turn-copy { gap: 2px; }
-  .game-input-active .turn-copy > p { font-size: 9px; }
+  .game-input-active .turn-copy > p { font-size: 11px; }
   .game-input-active .turn-copy h1 { min-height: 52px; gap: 4px; }
   .game-input-active .turn-copy h1 .syllable-orb { width: 44px; font-size: 30px; }
   .game-input-active .turn-copy h1 .turn-arrow { font-size: 13px; }
-  .game-input-active .turn-copy h1 i { max-width: 76px; font-size: 9px; }
-  .game-input-active .last-word { padding: 3px 5px; font-size: 8px; }
+  .game-input-active .turn-copy h1 i { max-width: 76px; font-size: 11px; }
+  .game-input-active .last-word { padding: 3px 5px; font-size: 11px; }
   .game-input-active .combo-meter { min-width: 30px; padding: 3px 2px; }
   .game-input-active .combo-meter small,
   .game-input-active .combo-meter span { font-size: 6px; }
   .game-input-active .combo-meter strong { font-size: 17px; }
   .game-input-active .feedback-rail { min-height: 38px; margin: 1px 0; }
-  .game-input-active .feedback-rail .event-text { padding: 4px; font-size: 9px; }
+  .game-input-active .feedback-rail .event-text { padding: 4px; font-size: 11px; }
   .game-input-active .feedback-rail .impact-card { min-height: 38px; }
   .game-input-active .feedback-rail .impact-mascot { width: 30px; height: 30px; }
   .game-input-active .feedback-rail .impact-copy strong { font-size: 16px; }
@@ -443,17 +460,16 @@ footer { min-height: 70px; color: #8290a7; line-height: 1.5; }
     background: rgba(10, 18, 31, .98);
     box-shadow: 0 -8px 24px rgba(0, 0, 0, .2);
   }
-  .game-input-active .input-prompt { min-height: 18px; margin: 0 2px 3px; font-size: 9px; }
+  .game-input-active .input-prompt { min-height: 20px; margin: 0 2px 3px; font-size: 11px; }
   .game-input-active .word-entry { grid-template-columns: minmax(0, 1fr) 46px; gap: 5px; }
   .game-input-active .word-form { grid-template-columns: minmax(0, 1fr) 58px; gap: 3px; padding: 3px; }
   .game-input-active .word-form input { min-height: 46px; padding-inline: 9px; font-size: 16px; }
   .game-input-active .button-kung { min-width: 58px; min-height: 44px; font-size: 12px; }
-  .game-input-active #submitLabel { font-size: 9px; white-space: nowrap; }
   .game-input-active .hint-button { min-width: 44px; min-height: 46px; }
-  .game-input-active .input-hint { min-height: 13px; margin: 3px 2px 0; font-size: 8px; }
+  .game-input-active .input-hint { min-height: 16px; margin: 3px 2px 0; font-size: 11px; }
 
   .game-input-short .game-shell { grid-template-rows: minmax(0, 1fr); grid-template-areas: "arena"; }
-  .game-input-short .arena { grid-template-rows: auto minmax(98px, 1fr) auto auto; }
+  .game-input-short .arena { grid-template-rows: auto minmax(112px, 1fr) auto auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

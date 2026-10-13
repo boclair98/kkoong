@@ -22,6 +22,10 @@
 - 기본 BGM은 첫 화면 조작 뒤 재생되며, 끄기 설정은 기기에 저장
 - 로비의 오빗 패스포트: 일일 임무, 연속 출격, XP/레벨, 플레이 통계, 무료 보상 조각, 배지
 - 지수 백오프 자동 재접속 및 동일 참가자 복귀
+- 연결 시간 초과·열기 전 연결 종료에도 다시 시도 가능하며, 복귀 상태를 받은 뒤에만 단어 제출 허용
+- 모바일 대기실에서도 초대 코드·링크 공유·로비 복귀 제공, 정원이 찬 방은 입장 목록에서 제외
+- 브라우저가 공유·자동 복사를 허용하지 않으면 선택 가능한 초대 링크 창에서 직접 복사 가능
+- 결과 순위는 서버 우승자를 먼저 표시하고 나머지는 점수순으로 정렬하며 내 유효 단어 수를 별도로 표시
 - 턴 전환에도 유지되는 모바일 입력 포커스, VisualViewport 기반 입력 집중 화면
 - 제출·턴 전환·시간 초과·재대결 입력 초기화, 한글 IME 중복 제출 방지
 - 외부 광고·결제·후원 기능 없음(현재는 플레이 보상만 제공)
@@ -105,7 +109,7 @@ macOS/Linux:
 입력 회귀 테스트(Node.js 내장 테스트 러너, 추가 패키지 불필요):
 
 ```sh
-node --test tools/game-input.test.cjs tools/crew-catalog.test.cjs tools/progression.test.cjs
+node --test tools/game-input.test.cjs tools/game-client.test.cjs tools/crew-catalog.test.cjs tools/progression.test.cjs
 ```
 
 실제 서버 연결 브라우저 회귀 스크립트는 `tools/browser-input-smoke.js`입니다.

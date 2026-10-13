@@ -286,6 +286,34 @@ class GameWebSocketIntegrationTests {
         }
     }
 
+    @Test
+    void fullWaitingRoomsDisappearFromLobbyAndReappearAfterBotRemoval() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        MessageListener messages = new MessageListener();
+        WebSocket socket = client.newWebSocketBuilder()
+                .buildAsync(URI.create("ws://localhost:" + port + "/ws/game"), messages).get(5, TimeUnit.SECONDS);
+        try {
+            socket.sendText("{\"type\":\"create\",\"nickname\":\"달빛연구원\"}", true).join();
+            String code = messages.await("joined", json).get("roomCode").asText();
+            messages.awaitState("waiting", json);
+            JsonNode waiting = null;
+            for (int i = 0; i < 7; i++) {
+                socket.sendText("{\"type\":\"addBot\"}", true).join();
+                waiting = messages.awaitState("waiting", json);
+            }
+            HttpRequest lobby = HttpRequest.newBuilder().uri(URI.create("http://localhost:" + port + "/api/lobby")).GET().build();
+            JsonNode full = json.readTree(client.send(lobby, HttpResponse.BodyHandlers.ofString()).body()).get("rooms");
+            for (JsonNode room : full) assertFalse(code.equals(room.get("code").asText()));
+            String botId = waiting.get("players").get(1).get("id").asText();
+            socket.sendText("{\"type\":\"removeBot\",\"botId\":\"" + botId + "\"}", true).join();
+            messages.awaitState("waiting", json);
+            JsonNode reopened = json.readTree(client.send(lobby, HttpResponse.BodyHandlers.ofString()).body()).get("rooms");
+            boolean listed = false;
+            for (JsonNode room : reopened) if (code.equals(room.get("code").asText())) listed = true;
+            assertTrue(listed);
+        } finally { socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join(); }
+    }
+
     private static final class MessageListener implements WebSocket.Listener {
         private final BlockingQueue<String> messages = new LinkedBlockingQueue<>();
         private final StringBuilder partial = new StringBuilder();

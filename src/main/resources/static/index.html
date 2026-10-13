@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="/typography.css?v=20260906-16">
   <link rel="stylesheet" href="/progression.css?v=20260914-01">
   <link rel="stylesheet" href="/orbit-redesign.css?v=20261012-04">
-  <link rel="stylesheet" href="/stitch-ui.css?v=20261013-03">
+  <link rel="stylesheet" href="/stitch-ui.css?v=20261013-04">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -172,6 +172,7 @@
 
       <section class="rooms-section" aria-labelledby="roomsTitle">
         <div class="section-heading"><div><span class="section-kicker">지금 열려 있는 게임</span><h2 id="roomsTitle">바로 입장</h2></div><button class="text-button" id="refreshRooms" type="button">새로고침 ↻</button></div>
+        <p id="lobbyStatus" class="room-list-status" role="status" hidden></p>
         <div id="roomList" class="room-list"><div class="empty-room"><span>◌</span><p>입장할 수 있는 게임을 찾는 중이에요</p></div></div>
       </section>
 
@@ -201,8 +202,12 @@
             <span class="waiting-kicker">ORBIT STATION · READY CHECK</span>
             <h2 id="waitingTitle">크루를 기다리고 있어요</h2>
             <p id="waitingCopyText">친구에게 방 코드를 보내거나 쿵봇을 불러 바로 출발할 수 있어요.</p>
+            <button id="waitingShareButton" class="waiting-invite" type="button" aria-label="방 코드와 초대 링크 공유">
+              <span>친구 초대 코드</span><strong id="waitingRoomCode">-----</strong><small>눌러서 초대 링크 공유</small>
+            </button>
             <div class="waiting-seat-count"><strong id="waitingSeatCount">0 / 8</strong><span>승무원 탑승</span></div>
             <ol class="waiting-steps"><li><b>01</b><span>초대 코드 공유</span></li><li><b>02</b><span>크루 탑승 확인</span></li><li><b>03</b><span>게임 시작!</span></li></ol>
+            <button class="text-button waiting-exit" type="button" data-go-home>로비로 돌아가기</button>
           </section>
           <div class="arena-top">
             <div><span class="mode-dot"></span><b id="gameMode">클래식 쿵</b><small id="gameRule">3글자 · 12초</small></div>
@@ -243,7 +248,7 @@
             <form id="wordForm" class="word-form" autocomplete="off">
               <label class="sr-only" for="wordInput">이어질 단어</label>
               <input id="wordInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send" aria-describedby="inputHint" maxlength="4" placeholder="단어를 입력하세요" disabled>
-              <button class="button button-kung" type="submit" aria-keyshortcuts="Enter" aria-label="단어 쿵, Enter 키로 제출" disabled><span id="submitLabel">쿵!</span><kbd aria-hidden="true">↵</kbd></button>
+              <button class="button button-kung" type="submit" aria-keyshortcuts="Enter" aria-label="단어 쿵, Enter 키로 제출" disabled><span id="submitLabel">쿵!</span><span class="submit-label-short" aria-hidden="true">쿵!</span><kbd aria-hidden="true">↵</kbd></button>
             </form>
             <button class="hint-button" id="hintButton" type="button" disabled><b>힌트</b><span id="hintCount">3</span></button>
           </div>
@@ -264,13 +269,14 @@
             <p id="resultSummary">멋진 승부였습니다</p>
             <div class="result-stats" aria-label="이번 경기 기록">
               <div><strong id="resultRank">-</strong><span>내 순위</span></div>
-              <div><strong id="resultWords">0</strong><span>유효 단어</span></div>
+              <div><strong id="resultWords">0</strong><span>내 유효 단어</span></div>
               <div><strong id="resultPlayers">0</strong><span>참가 크루</span></div>
             </div>
             <section class="result-scoreboard" aria-labelledby="resultScoreTitle">
-              <div><h3 id="resultScoreTitle">이번 항로 순위</h3><span>최종 점수</span></div>
+              <div><h3 id="resultScoreTitle">이번 항로 순위</h3><span>우승자 · 최종 점수</span></div>
               <ol id="resultRanking"></ol>
             </section>
+            <button class="text-button result-home" type="button" data-go-home>로비로 돌아가기</button>
           </section>
         </section>
 
@@ -320,9 +326,19 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="shareDialog" class="setup-dialog" aria-labelledby="shareTitle">
+    <form method="dialog">
+      <span class="dialog-kicker">친구와 함께 출격</span><h2 id="shareTitle">친구 초대 링크</h2>
+      <p class="nickname-help">아래 링크를 친구에게 보내면 같은 방에 들어올 수 있어요.</p>
+      <label for="shareLink">복사할 링크</label><input id="shareLink" type="text" readonly autocomplete="off" aria-describedby="shareHelp">
+      <p id="shareHelp" class="nickname-help">링크를 길게 누르거나 Ctrl+C를 눌러 복사해 주세요.</p>
+      <button class="button button-primary full" type="submit">닫기</button>
+    </form>
+  </dialog>
   <script src="/crew-catalog.js?v=20260906-16" defer></script>
   <script src="/game-input.js?v=20260906-16" defer></script>
+  <script src="/game-client.js?v=20261013-02" defer></script>
   <script src="/progression.js?v=20260914-01" defer></script>
-  <script src="/app.js?v=20261013-01" defer></script>
+  <script src="/app.js?v=20261013-05" defer></script>
 </body>
 </html>
