@@ -1,18 +1,19 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {SocketConnection, summarizeResult} = require('../src/main/resources/static/game-client.js');
+const {SocketConnection, summarizeResult, safeStorage} = require('../src/main/resources/static/game-client.js');
 
 function harness(overrides = {}) {
   const sockets = [], timers = new Map(), received = [], closed = [];
   let timerId = 0;
   const connection = new SocketConnection({
+    heartbeatMs: 0,
     createSocket: () => {
-      const socket = {readyState: 0, close() { this.readyState = 3; this.onclose?.(); }};
+      const socket = {readyState: 0, sent: [], send(value) { this.sent.push(value); }, close() { this.readyState = 3; this.onclose?.(); }};
       sockets.push(socket); return socket;
     },
     onMessage: message => received.push(message),
     onClose: error => closed.push(error),
-    setTimer: fn => { timers.set(++timerId, fn); return timerId; },
+    setTimer: fn => { const id = ++timerId; timers.set(id, () => { timers.delete(id); fn(); }); return id; },
     clearTimer: id => timers.delete(id),
     ...overrides
   });
@@ -107,4 +108,34 @@ test('tied scores and a draw have stable results without inventing a winner', ()
   assert.equal(draw.winner, null);
   assert.equal(draw.myRank, null);
   assert.equal(draw.myWords, 0);
+});
+
+test('heartbeat detects a silent network failure and permits recovery', async () => {
+  let now = 0;
+  const h = harness({heartbeatMs: 10000, now: () => now});
+  const open = h.connection.connect(); h.sockets[0].readyState = 1; h.sockets[0].onopen(); await open;
+  now = 10000; [...h.timers.values()][0]();
+  assert.equal(JSON.parse(h.sockets[0].sent[0]).type, 'ping');
+  h.sockets[0].onmessage({data: 'pong'});
+  now = 40000; h.connection.check();
+  assert.equal(h.connection.socket, null); assert.equal(h.closed.length, 1); assert.equal(h.timers.size, 0);
+});
+test('intentional close clears the heartbeat and malformed responses fail safely', async () => {
+  const h = harness({heartbeatMs: 10000, onMessage: () => { throw new Error('bad JSON'); }});
+  const open = h.connection.connect(); h.sockets[0].readyState = 1; h.sockets[0].onopen(); await open;
+  h.sockets[0].onmessage({data: 'invalid'});
+  assert.equal(h.closed[0].message, 'invalid server response'); assert.equal(h.connection.socket, null);
+  const retry = h.connection.connect(); h.sockets[1].readyState = 1; h.sockets[1].onopen(); await retry;
+  h.connection.close(); assert.equal(h.timers.size, 0); assert.equal(h.closed.length, 1);
+});
+test('result counts server totals rather than only the last twelve words', () => {
+  const result = summarizeResult({players: [{id: 'me', wordsPlayed: 31, score: 0, lives: 1}], history: [{playerId: 'me'}]}, 'me');
+  assert.equal(result.myWords, 31);
+});
+test('blocked storage cannot prevent play, preferences or current-session deletion', () => {
+  const store = safeStorage(() => { throw new Error('blocked'); });
+  assert.equal(store.getItem('sound'), null); store.setItem('sound', 'off');
+  assert.equal(store.getItem('sound'), 'off'); store.removeItem('sound'); assert.equal(store.getItem('sound'), null);
+  const full = safeStorage(() => ({getItem: () => 'old', setItem: () => { throw new Error('quota'); }, removeItem: () => { throw new Error('quota'); }}));
+  full.setItem('key', 'new'); assert.equal(full.getItem('key'), 'new'); full.removeItem('key'); assert.equal(full.getItem('key'), null);
 });

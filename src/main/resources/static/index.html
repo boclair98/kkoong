@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="/orbit-redesign.css?v=20261012-04">
   <link rel="stylesheet" href="/stitch-ui.css?v=20261013-04">
   <link rel="stylesheet" href="/mobile-ui.css?v=20261013-02">
+  <link rel="stylesheet" href="/release-ui.css?v=20261014-01">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -57,6 +58,7 @@
           <button class="button button-ghost button-xl" id="createButton" type="button">친구 방 만들기</button>
         </div>
         <p class="microcopy"><i></i> 가입 없음 <b>·</b> 완전 무료 <b>·</b> 광고와 결제 없음</p>
+        <div class="hero-help"><button id="practiceButton" class="help-button" type="button">처음이라면? 입력 연습</button><span>시간 제한 없이 세 단어로 배워요</span></div>
         <button class="mobile-crew-preview" id="mobileCrewChange" type="button" aria-label="내 캐릭터 변경">
           <span id="mobileCrewPortrait" class="mascot-sprite" aria-hidden="true"></span><span><small>함께 출격할 크루</small><strong id="mobileCrewName">루미</strong></span><span class="mobile-crew-meta"><b id="mobileDifficulty">초급</b><small>변경하기</small></span>
         </button>
@@ -332,6 +334,16 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <aside id="recoveryBanner" class="recovery-banner" role="status" aria-live="polite" hidden><p id="recoveryMessage">연결을 복구하고 있어요.</p><small>턴 시간은 계속 흘러요. 연결 복귀를 30초 기다리지만, 서버 재시작 시 방은 종료돼요.</small><div><button id="retryConnection" type="button">지금 다시 연결</button><button id="recoveryHome" type="button">로비로 가기</button></div></aside>
+  <dialog id="practiceDialog" class="practice-dialog" aria-labelledby="practiceTitle">
+    <div class="play-menu-heading"><div><span>FIRST FLIGHT</span><h2 id="practiceTitle">세 단어로 배우는 쿵!</h2></div><button id="closePractice" class="sheet-close" type="button" aria-label="연습 닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <p class="practice-copy">시간 제한 없이 예시 단어를 입력해 봐요. 실제 대전에서는 사전에 있는 다른 명사도 가능하고, 같은 단어는 한 판에 한 번만 사용해요. 연습은 점수·보상에 포함되지 않아요.</p>
+    <div id="practiceProgress" class="practice-progress" aria-label="연습 진행"><i></i><i></i><i></i></div>
+    <div class="practice-stage"><small id="practiceStep">1 / 3 단계</small><strong id="practiceSyllable">자</strong><span id="practiceExample">자전거</span></div>
+    <form id="practiceForm"><label for="practiceInput">위의 예시 단어를 입력하세요</label><div class="practice-entry"><input id="practiceInput" type="text" maxlength="3" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-describedby="practiceFeedback"><button id="practiceSubmit" class="button button-primary" type="submit">쿵!</button></div></form>
+    <p id="practiceFeedback" role="status" aria-live="polite">첫 글자에 맞춰 한글 세 글자를 입력하고 쿵! 또는 Enter를 눌러요.</p>
+    <div class="practice-actions" id="practiceComplete" hidden><button id="restartPractice" class="button button-secondary" type="button">다시 연습</button><button id="practicePlay" class="button button-primary" type="button">대전 시작</button></div>
+  </dialog>
   <dialog id="playMenu" class="play-menu" aria-labelledby="playMenuTitle">
     <div class="play-menu-heading"><div><span>MY ORBIT</span><h2 id="playMenuTitle">플레이 설정</h2></div><button id="closePlayMenu" class="sheet-close" type="button" aria-label="메뉴 닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
     <p id="menuGameNotice" class="menu-notice" hidden>실시간 게임은 메뉴를 열어도 시간이 계속 흘러요.</p>
@@ -356,8 +368,9 @@
   </dialog>
   <script src="/crew-catalog.js?v=20260906-16" defer></script>
   <script src="/game-input.js?v=20260906-16" defer></script>
-  <script src="/game-client.js?v=20261013-02" defer></script>
-  <script src="/progression.js?v=20260914-01" defer></script>
-  <script src="/app.js?v=20261013-07" defer></script>
+  <script src="/game-client.js?v=20261014-01" defer></script>
+  <script src="/practice.js?v=20261014-01" defer></script>
+  <script src="/progression.js?v=20261014-02" defer></script>
+  <script src="/app.js?v=20261014-02" defer></script>
 </body>
 </html>

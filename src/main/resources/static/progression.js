@@ -48,6 +48,7 @@
       lastPlayedDate: null,
       fragments: 0,
       badges: [],
+      recentEvents: [],
       missions: initialMissions()
     };
   }
@@ -69,6 +70,7 @@
     profile.streak = Math.floor(numberOr(source.streak));
     profile.fragments = Math.floor(numberOr(source.fragments));
     profile.badges = Array.isArray(source.badges) ? [...new Set(source.badges.filter(Boolean))] : [];
+    profile.recentEvents = Array.isArray(source.recentEvents) ? [...new Set(source.recentEvents.filter(id => typeof id === 'string' && id.length <= 160))].slice(-256) : [];
     profile.missions = {...initialMissions(), ...(source.missions || {})};
     for (const mission of MISSION_TEMPLATES) {
       const current = profile.missions[mission.id] || {};
@@ -122,6 +124,8 @@
   function apply(profile, event, date = new Date()) {
     const next = normalize(clone(profile), date);
     const type = typeof event === 'string' ? event : event?.type;
+    const id = typeof event?.id === 'string' && event.id.length <= 160 ? event.id : null;
+    if (id && next.recentEvents.includes(id)) return {profile: next, gainedXp: 0, duplicate: true};
     let gainedXp = 0;
     if (type === 'match') {
       next.matches += 1;
@@ -144,6 +148,7 @@
       next.bestCombo = Math.max(next.bestCombo, Math.floor(numberOr(event?.value)));
     }
     next.xp += gainedXp;
+    if (id && ['match', 'word', 'win', 'react', 'combo'].includes(type)) next.recentEvents = [...next.recentEvents, id].slice(-256);
     next.level = levelInfo(next.xp).level;
     unlockBadges(next);
     return {profile: next, gainedXp};

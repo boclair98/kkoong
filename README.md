@@ -28,6 +28,15 @@
 - 연결 시간 초과·열기 전 연결 종료에도 다시 시도 가능하며, 복귀 상태를 받은 뒤에만 단어 제출 허용
 - 모바일 대기실에서도 초대 코드·링크 공유·로비 복귀 제공, 정원이 찬 방은 입장 목록에서 제외
 - 브라우저가 공유·자동 복사를 허용하지 않으면 선택 가능한 초대 링크 창에서 직접 복사 가능
+- 로비의 첫 출격 연습: 실제 사전에 있는 세 예시 단어를 시간 제한 없이 입력, 한글 조합·오입력 안내(경기 점수/보상 제외)
+- 새 웹 세션은 탭별 참가자 ID와 비공개 복귀 토큰을 사용. 같은 탭 새로고침과 30초 내 복귀 시 방장·캐릭터·진행 상태 유지
+- 일시적 연결 끊김만으로 즉시 승패를 결정하지 않으며, 복귀 대기 중에도 턴 제한 시간은 계속 진행
+- 연결 상태 배너·수동 재연결·온라인 복귀, 10초 heartbeat와 25초 무응답 감지
+- 중복 방 생성·입장 방지, 한 연결은 한 방만 사용, 종료된 이전 연결의 게임 조작 차단
+- 서버에서 제한 시간 이후 입력·힌트를 거절하고 웹 요청의 라운드/턴 번호로 지연 제출 방지
+- 결과 유효 단어 수는 서버의 라운드 전체 누적값 사용(최근 12개 표시 기록과 구분)
+- 기기 성장 보상은 최근 256개 이벤트 ID로 중복 처리 방지: 같은 판 새로고침/복귀가 경기·단어·승리 보상을 다시 적립하지 않음
+- 저장소가 차단되거나 용량이 가득 차도 게임은 유지하며, 이때 설정은 현재 페이지 안에서만 유지
 - 결과 순위는 서버 우승자를 먼저 표시하고 나머지는 점수순으로 정렬하며 내 유효 단어 수를 별도로 표시
 - 턴 전환에도 유지되는 모바일 입력 포커스, VisualViewport 기반 입력 집중 화면
 - 제출·턴 전환·시간 초과·재대결 입력 초기화, 한글 IME 중복 제출 방지
@@ -113,7 +122,7 @@ macOS/Linux:
 입력 회귀 테스트(Node.js 내장 테스트 러너, 추가 패키지 불필요):
 
 ```sh
-node --test tools/game-input.test.cjs tools/game-client.test.cjs tools/crew-catalog.test.cjs tools/progression.test.cjs
+node --test tools/game-input.test.cjs tools/game-client.test.cjs tools/crew-catalog.test.cjs tools/progression.test.cjs tools/practice.test.cjs
 ```
 
 실제 서버 연결 브라우저 회귀 스크립트는 `tools/browser-input-smoke.js`입니다.
@@ -123,10 +132,36 @@ node --test tools/game-input.test.cjs tools/game-client.test.cjs tools/crew-cata
 실기기에서는 한글 조합, 키보드 보내기/쿵 버튼, 힌트 탭, 직접 키보드 닫기,
 가로/세로 회전, 앱 전환 후 복귀를 별도로 확인해야 합니다.
 
+HTTP/WebSocket 릴리스 스모크(Node 22 이상, 자신의 테스트 방만 만들고 정리):
+
+```sh
+node tools/release-smoke.cjs http://127.0.0.1:8080/
+# 배포 후 검증 시 URL만 https://segulja-kkung.coders.kr/ 로 변경
+```
+
+건강 상태·중복 방 생성 거절·복귀 토큰 비공개·잘못된 복귀 거절·캐릭터 중복 조정·
+방장/캐릭터 복귀·실제 힌트/유효 단어·전체 단어 수·퇴장 정리를 검증합니다.
+
 캐릭터 갤러리·이미지 로딩·선택·8인 봇 방 검증은 로비에서
 `tools/browser-crew-smoke.js`를 같은 방식으로 실행합니다. 테스트 전용 방을 생성합니다.
 이미지 원본과 전체 생성 프롬프트는 `art-source/CREW_V2.md`에 정리했습니다.
 `tools/prepare-crew-assets.cjs`는 보존된 원본을 512px 투명 WebP로 인코딩합니다(Sharp 필요).
+
+### 출시 품질 게이트
+
+`.github/workflows/ci.yml`은 main push/PR마다 Java 17에서 Spring 테스트와 JAR 빌드,
+Node 22에서 입력·연결·캐릭터·성장·연습 회귀 테스트를 실행합니다. CI 자체가 Coders.kr
+배포를 요청하거나 기본 브랜치 보호를 설정하지는 않습니다.
+
+서버는 프로세스당 방 200개·WebSocket 500개·메시지 4 KiB·연결당 10초에 60개 요청을
+상한으로 둡니다. 초과 요청은 연결을 종료합니다. 이는 기본 자원 보호이며 IP별 WAF,
+분산 DDoS 대응이나 대규모 동시접속 부하 검증을 대체하지 않습니다.
+새 웹 클라이언트는 `protocolVersion: 2`와 복귀 토큰을 사용하고 토큰은 `joined` 응답의
+본인 연결에만 전달합니다. URL·공개 방 상태·소스·로그에 포함하지 않습니다.
+이미 배포된 앱인토스의 레거시 프로토콜은 호환을 유지하므로 토큰 보호 대상이 아닙니다.
+이번 갱신은 Coders 웹만 대상이며 앱인토스 토큰 전환·번들 실기기 테스트는 별도 출시 작업입니다.
+
+실제 정식 출시 전 남은 게이트와 운영 대응은 [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)에 정리했습니다.
 
 ## 배포
 

@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 final class GameRoom {
     enum Phase { WAITING, PLAYING, FINISHED }
@@ -26,6 +27,7 @@ final class GameRoom {
     int turnIndex;
     int combo;
     int round;
+    String roundId = "";
     long turnStartedAt;
     long deadline;
     long botActionAt;
@@ -63,6 +65,9 @@ final class GameRoom {
         int wins;
         int mascot;
         int hintsRemaining = 3;
+        int wordsPlayed;
+        final String resumeToken = UUID.randomUUID().toString();
+        boolean protectedResume;
         long disconnectedAt;
         WebSocketSession session;
 

@@ -11,6 +11,27 @@ test('profile starts with a fresh daily mission board', () => {
   assert.deepEqual(Object.keys(profile.missions), ['launch', 'wordsmith', 'signal']);
 });
 
+test('round reward IDs remain idempotent after reload and rematch can earn again', () => {
+  let stored = '';
+  const options = {read: () => stored, write: value => { stored = value; }, now: () => date};
+  let store = progression.createStore(options);
+  store.record({type: 'match', id: 'match:round-a'});
+  store.record({type: 'word', id: 'word:round-a:1'});
+  store.record({type: 'win', id: 'win:round-a'});
+  store = progression.createStore(options);
+  for (const [type, id] of [['match', 'match:round-a'], ['word', 'word:round-a:1'], ['win', 'win:round-a']]) {
+    assert.equal(store.record({type, id}).duplicate, true);
+  }
+  assert.equal(store.get().matches, 1); assert.equal(store.get().wins, 1); assert.equal(store.get().words, 1); assert.equal(store.get().xp, 40);
+  store.record({type: 'match', id: 'match:round-b'}); assert.equal(store.get().matches, 2);
+});
+test('event memory is bounded and malformed stored IDs are ignored', () => {
+  let profile = progression.parse(JSON.stringify({recentEvents: [null, 42, 'a'.repeat(161), 'valid', 'valid']}), date);
+  assert.deepEqual(profile.recentEvents, ['valid']);
+  for (let i = 0; i < 300; i++) profile = progression.apply(profile, {type: 'word', id: `word:${i}`}, date).profile;
+  assert.equal(profile.recentEvents.length, 256); assert.equal(profile.words, 300);
+});
+
 test('match and word events update stats, streak, xp and missions', () => {
   let profile = progression.emptyProfile(date);
   profile = progression.apply(profile, 'match', date).profile;

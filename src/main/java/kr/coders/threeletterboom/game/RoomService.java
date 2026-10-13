@@ -8,6 +8,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -27,6 +29,8 @@ public class RoomService {
     private static final int MAX_PLAYERS = 8;
     private static final int HINTS_PER_ROUND = 3;
     private static final int HINT_COST = 40;
+    private static final int MAX_ROOMS = 200;
+    private static final long RECONNECT_GRACE_MS = 30_000;
     private static final Set<String> REACTIONS = Set.of("👏", "🔥", "😱", "ㅋㅋ", "💥", "💡");
     private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
 
@@ -55,8 +59,8 @@ public class RoomService {
                 case "quickJoin" -> quickJoin(session, message);
                 case "duelQueue" -> duelQueue(session, message);
                 case "start" -> withPlayer(session, (room, player) -> start(room, player));
-                case "word" -> withPlayer(session, (room, player) -> submitWord(room, player, text(message, "word")));
-                case "hint" -> withPlayer(session, this::requestHint);
+                case "word" -> withPlayer(session, (room, player) -> { requireCurrentTurn(room, message); submitWord(room, player, text(message, "word")); });
+                case "hint" -> withPlayer(session, (room, player) -> { requireCurrentTurn(room, message); requestHint(room, player); });
                 case "react" -> withPlayer(session, (room, player) -> react(room, player, text(message, "emoji")));
                 case "addBot" -> withPlayer(session, this::addBot);
                 case "removeBot" -> withPlayer(session, (room, player) -> removeBot(room, player, text(message, "botId")));
@@ -113,11 +117,12 @@ public class RoomService {
     }
 
     private void create(WebSocketSession session, JsonNode message) {
+        requireUnassigned(session);
         cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
         String code = newCode();
         GameRoom room = new GameRoom(code, mode, GameDifficulty.from(text(message, "difficulty")));
-        rooms.put(code, room);
+        registerRoom(room);
         joinRoom(session, message, room);
     }
 
@@ -129,26 +134,36 @@ public class RoomService {
     }
 
     private void quickJoin(WebSocketSession session, JsonNode message) {
+        requireUnassigned(session);
         cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
         GameRoom room = rooms.values().stream()
-                .filter(candidate -> !candidate.duelQueue && candidate.mode == mode && candidate.phase == GameRoom.Phase.WAITING)
-                .filter(candidate -> candidate.players.size() < MAX_PLAYERS)
+                .filter(candidate -> {
+                    synchronized (candidate) {
+                        return !candidate.duelQueue && candidate.mode == mode && candidate.phase == GameRoom.Phase.WAITING
+                                && candidate.players.size() < MAX_PLAYERS;
+                    }
+                })
                 .findFirst().orElseGet(() -> {
                     GameRoom created = new GameRoom(newCode(), mode, GameDifficulty.from(text(message, "difficulty")));
-                    rooms.put(created.code, created);
+                    registerRoom(created);
                     return created;
                 });
         joinRoom(session, message, room);
     }
 
     private void duelQueue(WebSocketSession session, JsonNode message) {
+        requireUnassigned(session);
         cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
         for (int attempt = 0; attempt < 4; attempt++) {
             GameRoom waiting = rooms.values().stream()
-                    .filter(candidate -> candidate.duelQueue && candidate.mode == mode
-                            && candidate.phase == GameRoom.Phase.WAITING && candidate.players.size() < 2)
+                    .filter(candidate -> {
+                        synchronized (candidate) {
+                            return candidate.duelQueue && candidate.mode == mode
+                                    && candidate.phase == GameRoom.Phase.WAITING && candidate.players.size() < 2;
+                        }
+                    })
                     .min(Comparator.comparing(candidate -> candidate.createdAt)).orElse(null);
             if (waiting == null) break;
             try {
@@ -159,20 +174,24 @@ public class RoomService {
             }
         }
         GameRoom created = new GameRoom(newCode(), mode, GameDifficulty.from(text(message, "difficulty")), true);
-        rooms.put(created.code, created);
+        registerRoom(created);
         joinRoom(session, message, created);
     }
 
     private void joinRoom(WebSocketSession session, JsonNode message, GameRoom room) {
+        Location assigned = sessionLocations.get(session.getId());
+        if (assigned != null && !assigned.roomCode.equals(room.code)) {
+            throw new GameProblem("ALREADY_IN_ROOM", "현재 방에서 나간 뒤 다른 방에 들어가 주세요");
+        }
         String playerId = resolvePlayerId(session, text(message, "playerId"));
         String nickname = cleanNickname(text(message, "nickname"));
         synchronized (room) {
-            if (room.phase == GameRoom.Phase.FINISHED) {
-                throw new GameProblem("GAME_FINISHED", "이 판은 끝났어요. 새 방에서 다시 만나요");
-            }
             int requestedMascot = message.path("mascot").asInt(-1);
             GameRoom.Player player = room.players.get(playerId);
             if (player == null) {
+                if (room.phase == GameRoom.Phase.FINISHED) {
+                    throw new GameProblem("GAME_FINISHED", "이 판은 끝났어요. 새 방에서 다시 만나요");
+                }
                 if (room.phase != GameRoom.Phase.WAITING) {
                     throw new GameProblem("GAME_STARTED", "이미 시작한 방이에요");
                 }
@@ -180,11 +199,18 @@ public class RoomService {
                     throw new GameProblem("ROOM_FULL", "방이 꽉 찼어요");
                 }
                 player = new GameRoom.Player(playerId, nickname, false, room.mode.lives(), session);
+                player.protectedResume = message.path("protocolVersion").asInt(1) >= 2;
                 player.mascot = MascotRoster.choose(room, playerId, requestedMascot, random);
                 room.players.put(playerId, player);
                 if (room.hostId == null) room.hostId = playerId;
                 room.eventText = nickname + "님이 들어왔어요";
             } else {
+                if (player.bot || (player.protectedResume && player.session != session
+                        && !MessageDigest.isEqual(player.resumeToken.getBytes(StandardCharsets.UTF_8),
+                        text(message, "resumeToken").getBytes(StandardCharsets.UTF_8)))) {
+                    throw new GameProblem("RESUME_DENIED", "복귀 정보를 확인하지 못했어요. 로비에서 새 방으로 시작해 주세요");
+                }
+                if (player.session != null && player.session != session) sessionLocations.remove(player.session.getId());
                 player.nickname = nickname;
                 player.session = session;
                 player.connected = true;
@@ -194,8 +220,10 @@ public class RoomService {
             // Reconnect keeps the room assignment, even if the saved preference differs.
             room.updatedAt = System.currentTimeMillis();
             sessionLocations.put(session.getId(), new Location(room.code, playerId));
-            send(session, Map.of("type", "joined", "roomCode", room.code, "playerId", playerId,
+            Map<String, Object> joined = new LinkedHashMap<>(Map.of("type", "joined", "roomCode", room.code, "playerId", playerId,
                     "mascot", player.mascot, "mascotAdjusted", requestedMascot >= 0 && requestedMascot != player.mascot));
+            if (player.protectedResume) joined.put("resumeToken", player.resumeToken);
+            send(session, joined);
             broadcastState(room);
             if (room.duelQueue && room.phase == GameRoom.Phase.WAITING
                     && room.players.values().stream().filter(p -> !p.bot && p.connected).count() == 2) {
@@ -209,7 +237,7 @@ public class RoomService {
         synchronized (room) {
             if (room.duelQueue) throw new GameProblem("DUEL_AUTO", "1:1 대전은 상대가 오면 자동으로 시작해요");
             requireHost(room, requester);
-            if (room.phase == GameRoom.Phase.PLAYING) throw new GameProblem("ALREADY_STARTED", "이미 게임 중이에요");
+            if (room.phase != GameRoom.Phase.WAITING) throw new GameProblem("ALREADY_STARTED", "대기실에서만 시작할 수 있어요. 결과 화면에서는 한 판 더를 눌러 주세요");
             if (room.players.values().stream().filter(player -> !player.bot && player.connected).count() == 1
                     && room.players.values().stream().noneMatch(player -> player.bot)) {
                 addBotInternal(room);
@@ -228,6 +256,7 @@ public class RoomService {
         room.history.clear();
         room.combo = 0;
         room.round++;
+        room.roundId = UUID.randomUUID().toString();
         room.turnCount = 0;
         room.lastWord = null;
         room.winnerId = null;
@@ -238,7 +267,8 @@ public class RoomService {
             player.lives = room.mode.lives();
             player.streak = 0;
             player.hintsRemaining = HINTS_PER_ROUND;
-            player.eliminated = false;
+            player.wordsPlayed = 0;
+            player.eliminated = !player.bot && !player.connected;
         });
         room.eventText = "첫 글자는 ‘" + room.requiredSyllable + "’ — 리듬 시작!";
         startTurn(room);
@@ -248,6 +278,7 @@ public class RoomService {
         synchronized (room) {
             requirePlaying(room);
             if (currentPlayer(room) != player) throw new GameProblem("NOT_YOUR_TURN", "지금은 다른 사람 차례예요");
+            requireTimeRemaining(room, player);
             String word = WordDictionary.normalize(rawWord);
             validateWord(room, word);
             acceptWord(room, player, word);
@@ -276,6 +307,7 @@ public class RoomService {
         if (fever) points *= 2;
         player.score += points;
         player.streak++;
+        player.wordsPlayed++;
         room.combo++;
         room.lastWord = word;
         room.requiredSyllable = WordDictionary.lastSyllable(word);
@@ -290,6 +322,7 @@ public class RoomService {
         synchronized (room) {
             requirePlaying(room);
             if (currentPlayer(room) != player) throw new GameProblem("NOT_YOUR_TURN", "지금은 다른 사람 차례예요");
+            requireTimeRemaining(room, player);
             if (player.hintsRemaining <= 0) throw new GameProblem("NO_HINTS", "이번 궤도의 힌트를 모두 사용했어요");
             String word = dictionary.pick(room.requiredSyllable, room.mode, room.usedWords);
             if (word == null) throw new GameProblem("HINT_UNAVAILABLE", "이 글자로 이어갈 힌트를 찾지 못했어요");
@@ -360,6 +393,9 @@ public class RoomService {
         synchronized (room) {
             requireHost(room, requester);
             if (room.phase != GameRoom.Phase.FINISHED) throw new GameProblem("NOT_FINISHED", "현재 판이 끝난 뒤 다시 할 수 있어요");
+            if (room.players.values().stream().filter(player -> player.bot || player.connected).count() < 2) {
+                throw new GameProblem("NEED_PLAYERS", "친구가 복귀한 뒤 다시 시작해 주세요");
+            }
             resetRound(room);
             broadcastState(room);
         }
@@ -371,26 +407,32 @@ public class RoomService {
         GameRoom room = rooms.get(location.roomCode);
         if (room == null) return;
         synchronized (room) {
+            List<String> previousOrder = new ArrayList<>(room.players.keySet());
+            String currentId = currentPlayer(room) == null ? null : currentPlayer(room).id;
             GameRoom.Player player = room.players.get(location.playerId);
             if (player == null || (player.session != null && !player.session.getId().equals(session.getId()))) return;
             player.connected = false;
             player.session = null;
             player.disconnectedAt = System.currentTimeMillis();
-            if (explicit || room.phase == GameRoom.Phase.WAITING) {
+            if (explicit) {
                 room.players.remove(player.id);
+                reactionTimes.remove(player.id);
                 room.eventText = player.nickname + "님이 방을 나갔어요";
                 if (room.phase == GameRoom.Phase.PLAYING) player.eliminated = true;
             } else {
                 room.eventText = player.nickname + "님 연결을 기다리는 중…";
             }
-            if (player.id.equals(room.hostId)) {
-                room.hostId = room.players.values().stream().filter(candidate -> !candidate.bot)
+            if (player.id.equals(room.hostId) && explicit) {
+                room.hostId = room.players.values().stream().filter(candidate -> !candidate.bot && candidate.connected)
                         .map(candidate -> candidate.id).findFirst().orElse(null);
             }
             if (room.players.values().stream().noneMatch(candidate -> !candidate.bot)) {
                 rooms.remove(room.code);
             } else {
                 if (room.phase == GameRoom.Phase.PLAYING && activePlayers(room).size() <= 1) finish(room);
+                else if (explicit && room.phase == GameRoom.Phase.PLAYING) {
+                    preserveTurnAfterRemoval(room, currentId, previousOrder);
+                }
                 broadcastState(room);
             }
         }
@@ -401,9 +443,12 @@ public class RoomService {
         if (location == null) throw new GameProblem("JOIN_FIRST", "먼저 방에 들어가 주세요");
         GameRoom room = rooms.get(location.roomCode);
         if (room == null) throw new GameProblem("ROOM_CLOSED", "방이 닫혔어요");
-        GameRoom.Player player = room.players.get(location.playerId);
-        if (player == null) throw new GameProblem("PLAYER_GONE", "참가자 정보를 찾지 못했어요");
-        action.run(room, player);
+        synchronized (room) {
+            GameRoom.Player player = room.players.get(location.playerId);
+            if (player == null) throw new GameProblem("PLAYER_GONE", "참가자 정보를 찾지 못했어요");
+            if (player.session != session || !player.connected) throw new GameProblem("SESSION_REPLACED", "다른 연결에서 복귀했어요. 이 화면은 로비로 돌아가 주세요");
+            action.run(room, player);
+        }
     }
 
     private void tickSafely() {
@@ -411,8 +456,8 @@ public class RoomService {
             long now = System.currentTimeMillis();
             for (GameRoom room : new ArrayList<>(rooms.values())) {
                 synchronized (room) {
-                    if (room.phase == GameRoom.Phase.PLAYING) tickGame(room, now);
                     cleanDisconnected(room, now);
+                    if (room.phase == GameRoom.Phase.PLAYING) tickGame(room, now);
                     if (now - room.updatedAt > TimeUnit.HOURS.toMillis(2)) rooms.remove(room.code);
                 }
             }
@@ -491,7 +536,7 @@ public class RoomService {
         for (int step = 1; step <= order.size(); step++) {
             int next = (room.turnIndex + step) % order.size();
             GameRoom.Player candidate = order.get(next);
-            if (!candidate.eliminated && (candidate.connected || candidate.bot)) {
+            if (!candidate.eliminated) {
                 room.turnIndex = next;
                 startTurn(room);
                 return;
@@ -516,23 +561,75 @@ public class RoomService {
         if (order.isEmpty()) return null;
         room.turnIndex = Math.floorMod(room.turnIndex, order.size());
         GameRoom.Player candidate = order.get(room.turnIndex);
-        return !candidate.eliminated && (candidate.connected || candidate.bot) ? candidate : null;
+        return !candidate.eliminated ? candidate : null;
     }
 
     private List<GameRoom.Player> activePlayers(GameRoom room) {
         return room.players.values().stream()
-                .filter(player -> !player.eliminated && (player.connected || player.bot)).toList();
+                .filter(player -> !player.eliminated).toList();
     }
 
     private void cleanDisconnected(GameRoom room, long now) {
-        long grace = room.phase == GameRoom.Phase.PLAYING ? TimeUnit.MINUTES.toMillis(2) : TimeUnit.SECONDS.toMillis(30);
+        long grace = RECONNECT_GRACE_MS;
+        List<String> previousOrder = new ArrayList<>(room.players.keySet());
+        String currentId = currentPlayer(room) == null ? null : currentPlayer(room).id;
         List<String> stale = room.players.values().stream().filter(player -> !player.bot && !player.connected)
                 .filter(player -> player.disconnectedAt > 0 && now - player.disconnectedAt > grace)
                 .map(player -> player.id).toList();
-        stale.forEach(room.players::remove);
+        if (stale.isEmpty()) return;
+        stale.forEach(id -> { room.players.remove(id); reactionTimes.remove(id); });
         if (room.hostId != null && !room.players.containsKey(room.hostId)) {
-            room.hostId = room.players.values().stream().filter(player -> !player.bot).map(player -> player.id).findFirst().orElse(null);
+            room.hostId = room.players.values().stream().filter(player -> !player.bot && player.connected).map(player -> player.id).findFirst().orElse(null);
         }
+        if (room.players.values().stream().noneMatch(player -> !player.bot)) { rooms.remove(room.code); return; }
+        if (room.phase == GameRoom.Phase.PLAYING) preserveTurnAfterRemoval(room, currentId, previousOrder);
+        broadcastState(room);
+    }
+
+    private void preserveTurnAfterRemoval(GameRoom room, String previousId, List<String> previousOrder) {
+        if (activePlayers(room).size() <= 1) { finish(room); return; }
+        List<GameRoom.Player> order = new ArrayList<>(room.players.values());
+        for (int index = 0; index < order.size(); index++) {
+            if (order.get(index).id.equals(previousId)) { room.turnIndex = index; return; }
+        }
+        int previousIndex = previousOrder.indexOf(previousId);
+        for (int step = 1; step <= previousOrder.size(); step++) {
+            String nextId = previousOrder.get(Math.floorMod(previousIndex + step, previousOrder.size()));
+            GameRoom.Player next = room.players.get(nextId);
+            if (next != null && !next.eliminated) {
+                room.turnIndex = order.indexOf(next);
+                startTurn(room);
+                return;
+            }
+        }
+        finish(room);
+    }
+
+    private void requireTimeRemaining(GameRoom room, GameRoom.Player player) {
+        if (System.currentTimeMillis() >= room.deadline) {
+            timeout(room, player, player.nickname + "님, 박자를 놓쳤어요");
+            broadcastState(room);
+            throw new GameProblem("TURN_EXPIRED", "제한 시간이 지났어요. 다음 차례에 이어주세요");
+        }
+    }
+
+    private void requireCurrentTurn(GameRoom room, JsonNode message) {
+        if ((message.has("round") && message.path("round").asInt(-1) != room.round)
+                || (message.has("turnCount") && message.path("turnCount").asInt(-1) != room.turnCount)) {
+            broadcastState(room);
+            throw new GameProblem("STALE_TURN", "이미 다음 차례로 넘어갔어요. 현재 첫 글자를 확인해 주세요");
+        }
+    }
+
+    private void requireUnassigned(WebSocketSession session) {
+        if (sessionLocations.containsKey(session.getId())) {
+            throw new GameProblem("ALREADY_IN_ROOM", "이미 입장했어요. 현재 방에서 나간 뒤 다시 시작해 주세요");
+        }
+    }
+
+    private synchronized void registerRoom(GameRoom room) {
+        if (rooms.size() >= MAX_ROOMS) throw new GameProblem("SERVER_BUSY", "현재 열린 방이 많아요. 잠시 뒤 다시 시작해 주세요");
+        if (rooms.putIfAbsent(room.code, room) != null) throw new GameProblem("SERVER_BUSY", "방 생성이 겹쳤어요. 다시 시작해 주세요");
     }
 
     private void requireHost(GameRoom room, GameRoom.Player requester) {
@@ -576,6 +673,7 @@ public class RoomService {
             item.put("streak", player.streak);
             item.put("wins", player.wins);
             item.put("hints", player.hintsRemaining);
+            item.put("wordsPlayed", player.wordsPlayed);
             item.put("host", player.id.equals(room.hostId));
             return item;
         }).toList());
@@ -587,6 +685,7 @@ public class RoomService {
         result.put("feverTarget", 7);
         result.put("fever", room.combo >= 7);
         result.put("round", room.round);
+        result.put("roundId", room.roundId);
         result.put("turnCount", room.turnCount);
         result.put("deadline", room.deadline);
         result.put("winnerId", room.winnerId);

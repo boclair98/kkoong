@@ -1,0 +1,38 @@
+.help-button { min-height: 44px; padding: 8px 12px; border: 1px solid #7897ad60; border-radius: 12px; background: #172639; color: #d4eaf5; font: inherit; font-size: 13px; cursor: pointer; }
+.help-button:focus-visible, .recovery-banner button:focus-visible { outline: 2px solid #83eee4; outline-offset: 3px; }
+.hero-help { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #a3b7cb; font-size: 12px; }
+.hero-help button { flex-shrink: 0; }
+.hero-help span { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.recovery-banner { position: fixed; z-index: 90; top: 80px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); padding: 14px; border: 1px solid #edc87290; border-radius: 16px; color: #fff5d5; background: #332d20fa; box-shadow: 0 12px 30px #0006; }
+.recovery-banner p { margin: 0 0 8px; font-size: 14px; line-height: 1.6; word-break: keep-all; }
+.recovery-banner small { display: block; color: #c5bda9; font-size: 12px; }
+.recovery-banner > div { display: flex; gap: 8px; margin-top: 10px; }
+.recovery-banner button { min-height: 44px; padding: 8px 14px; border: 1px solid #a291635f; border-radius: 10px; color: #fff4d4; background: #524325; font: inherit; font-size: 13px; cursor: pointer; }
+.recovery-banner #recoveryHome { background: transparent; }
+.practice-dialog { width: min(480px, calc(100% - 24px)); max-height: 90dvh; padding: 24px; border: 1px solid #78ced046; border-radius: 26px; color: #eaf5ff; background: #142436; overflow-y: auto; }
+.practice-dialog::backdrop { background: #020b18bb; backdrop-filter: blur(5px); }
+.practice-dialog .practice-copy { margin: 12px 0 16px; color: #acbfd3; font-size: 13px; line-height: 1.7; word-break: keep-all; }
+.practice-progress { display: flex; gap: 6px; margin-bottom: 16px; }
+.practice-progress i { flex: 1; height: 5px; border-radius: 8px; background: #314559; }
+.practice-progress i.done { background: #74e7ca; }
+.practice-stage { padding: 18px; border: 1px solid #79a5c140; border-radius: 18px; text-align: center; background: #102032; }
+.practice-stage small { color: #b7cadd; font-size: 12px; }
+#practiceSyllable { display: block; margin: 6px 0; color: #9af5e3; font-size: 48px; line-height: 1.2; }
+#practiceExample { color: #eaf6ff; font-size: 19px; }
+.practice-dialog label { display: block; margin: 16px 0 8px; color: #bfd5e4; font-size: 13px; }
+.practice-entry { display: flex; gap: 8px; }
+.practice-entry input { width: 100%; min-width: 0; min-height: 52px; padding: 10px 12px; border: 1px solid #80b6c275; border-radius: 12px; color: #f2fbff; background: #0b1929; font-size: 16px; }
+.practice-entry input:focus { outline: 2px solid #83eee4; }
+.practice-entry .button { flex-shrink: 0; min-height: 52px; }
+#practiceFeedback { min-height: 42px; margin: 12px 0; color: #b4c7d8; font-size: 13px; line-height: 1.6; word-break: keep-all; }
+#practiceFeedback.success { color: #95f1d4; }
+#practiceFeedback.error { color: #ffc4c4; }
+.practice-actions { display: flex; gap: 8px; }
+.practice-actions .button { flex: 1; min-height: 48px; }
+.practice-dialog [hidden], .recovery-banner[hidden] { display: none !important; }
+@media (max-width: 760px) {
+  .recovery-banner { top: max(12px, env(safe-area-inset-top)); }
+  .practice-dialog { padding: 20px; max-height: 88dvh; }
+  .practice-dialog h2 { font-size: 23px; }
+  .hero-help { margin-bottom: 8px; }
+}

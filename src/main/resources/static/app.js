@@ -3,6 +3,10 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const localStorage = KungClient.safeStorage(() => window.localStorage);
+  const sessionStore = KungClient.safeStorage(() => window.sessionStorage);
+  let restoredSession;
+  try { restoredSession = JSON.parse(sessionStore.getItem('segulja-room-session')); } catch { /* old or invalid record */ }
   const lobby = $('#lobbyScreen');
   ['.lobby-hero', '.join-strip', '.mode-section', '.crew-section', '.dictionary-strip', '.passport-section', '.rooms-section', '.promise-strip']
     .map(selector => $(selector, lobby)).filter(Boolean).forEach(section => lobby.append(section));
@@ -46,7 +50,8 @@
   const savedMascot = Number(localStorage.getItem('segulja-mascot'));
 
   const app = {
-    socket: null, reconnectTimer: null, awaitingState: true, loadingLobby: false, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
+    socket: null, reconnectTimer: null, awaitingState: true, loadingLobby: false, entryPending: false, room: null,
+    playerId: sessionStore.getItem('segulja-tab-player') || `guest-${crypto.randomUUID()}`, resumeToken: '',
     nickname: approvedNames.includes(localStorage.getItem('segulja-nickname')) ? localStorage.getItem('segulja-nickname') : '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') !== 'off',
     haptics: localStorage.getItem('segulja-haptics') !== 'off',
@@ -66,7 +71,7 @@
     read: () => localStorage.getItem('segulja-passport-v1'),
     write: value => localStorage.setItem('segulja-passport-v1', value)
   });
-  localStorage.setItem('segulja-player', app.playerId);
+  sessionStore.setItem('segulja-tab-player', app.playerId);
 
   function socketUrl() {
     return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/game`;
@@ -82,16 +87,17 @@
     createSocket: () => new WebSocket(socketUrl()),
     onSocket: socket => { app.socket = socket; },
     onOpen: socket => {
-      app.reconnectAttempt = 0; app.awaitingState = true; setConnection(true, '연결됨');
+      app.reconnectAttempt = 0; app.awaitingState = true; setConnection(!app.desiredRoom, app.desiredRoom ? '복귀 중' : '연결됨');
       if (app.desiredRoom) socket.send(JSON.stringify({
-        type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId, mascot: app.mascot
+        type: 'join', code: app.desiredRoom, nickname: app.nickname, playerId: app.playerId, mascot: app.mascot,
+        protocolVersion: 2, resumeToken: app.resumeToken
       }));
     },
     onMessage: payload => handleMessage(JSON.parse(payload)),
     onClose: () => {
       app.awaitingState = true; setConnection(false, '재연결 중');
       wordEntry.reset(); syncInputControls();
-      if (app.desiredRoom) {
+      if (app.desiredRoom && navigator.onLine) {
         const delay = Math.min(7000, 700 * 2 ** app.reconnectAttempt++);
         app.reconnectTimer = setTimeout(() => { if (app.desiredRoom) connect().catch(() => {}); }, delay);
       }
@@ -107,6 +113,7 @@
         console.warn('Game connection failed:', error?.message);
         toast('서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요');
       }
+      setEntryPending(false);
     }
   }
 
@@ -114,7 +121,10 @@
     if (message.type === 'joined') {
       app.desiredRoom = message.roomCode;
       app.playerId = message.playerId;
-      localStorage.setItem('segulja-player', app.playerId);
+      app.resumeToken = message.resumeToken || '';
+      sessionStore.setItem('segulja-tab-player', app.playerId);
+      sessionStore.setItem('segulja-room-session', JSON.stringify({roomCode: message.roomCode, playerId: app.playerId, resumeToken: app.resumeToken}));
+      setEntryPending(false);
       if (message.mascotAdjusted && crewCatalog[message.mascot]) {
         app.crewNotice = `같은 크루가 이미 있어 이번 방에서는 ${crewNames[message.mascot]}와 함께해요`;
       }
@@ -127,6 +137,7 @@
     }
     if (message.type === 'state') {
       app.awaitingState = false;
+      setConnection(true, '연결됨');
       clearTimeout(toast.timer);
       els.toast.classList.remove('show');
       app.serverOffset = message.serverTime - Date.now();
@@ -150,6 +161,7 @@
       return;
     }
     if (message.type === 'error') {
+      setEntryPending(false);
       wordEntry.reject(); syncInputControls();
       toast(message.message);
       tone('error');
@@ -168,7 +180,8 @@
         els.inputHint.classList.add('invalid');
         els.inputHint.textContent = message.message;
       }
-      if (['ROOM_NOT_FOUND', 'GAME_STARTED', 'GAME_FINISHED', 'ROOM_FULL'].includes(message.code) && (app.awaitingState || !app.room)) goHome();
+      if (['RESUME_DENIED', 'SESSION_REPLACED', 'JOIN_FIRST', 'ROOM_CLOSED', 'PLAYER_GONE'].includes(message.code)
+          || (['ROOM_NOT_FOUND', 'GAME_STARTED', 'GAME_FINISHED', 'ROOM_FULL'].includes(message.code) && (app.awaitingState || !app.room))) goHome();
     }
   }
 
@@ -184,11 +197,13 @@
       try { app.socket.send(JSON.stringify({type: 'leave'})); } catch { /* close also leaves the room */ }
     }
     app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastPlayAt = 0; app.lastTurn = null; app.lastFever = false; app.crewNotice = '';
+    app.resumeToken = ''; sessionStore.removeItem('segulja-room-session'); setEntryPending(false);
     app.previousLives.clear(); resetFeedback(); els.result.hidden = true;
     wordEntry.update(null, app.playerId); els.wordForm.classList.remove('invalid'); updateInputViewport();
     clearTimeout(app.reconnectTimer); app.reconnectTimer = null; app.awaitingState = true; transport.close();
     history.replaceState({}, '', location.pathname);
     els.game.hidden = true; els.lobby.hidden = false; setMusicState(null); loadLobby();
+    setConnection(false, '대기 중');
     window.scrollTo({top: 0, behavior: 'instant'});
   }
 
@@ -322,14 +337,16 @@
   function recordProgression(room) {
     const previousPhase = app.lastPhase;
     const latest = room.history?.at(-1);
+    const roundKey = room.roundId || `${room.roomCode}:${room.round}`;
     let changed = false;
-    const record = event => { progression.record(event); changed = true; };
-    if (room.phase === 'playing' && previousPhase !== 'playing') record('match');
+    const record = event => { const result = progression.record(event); changed ||= !result.duplicate; };
+    if (room.phase === 'playing' && previousPhase !== 'playing') record({type: 'match', id: `match:${roundKey}`});
     // Ignore history already present when joining an active room; only count new local plays.
-    if (previousPhase !== null && latest && latest.at > app.lastPlayAt && latest.playerId === app.playerId) record('word');
+    if (previousPhase !== null && latest && latest.at > app.lastPlayAt && latest.playerId === app.playerId) record({type: 'word', id: `word:${roundKey}:${latest.at}:${latest.word}`});
     const currentBest = progression.get().bestCombo;
     if (Number.isFinite(Number(room.combo)) && room.combo > currentBest) record({type: 'combo', value: room.combo});
-    if (room.phase === 'finished' && previousPhase === 'playing' && room.winnerId === app.playerId) record('win');
+    if (room.phase === 'finished' && room.winnerId === app.playerId
+        && (previousPhase === 'playing' || progression.get().recentEvents.includes(`match:${roundKey}`))) record({type: 'win', id: `win:${roundKey}`});
     if (changed) renderPassport();
   }
 
@@ -665,6 +682,7 @@
   }
 
   function openSetup(intent, {mode = 'classic', code = ''} = {}) {
+    if (els.dialog.open || app.entryPending) return;
     app.setupIntent = intent; app.pendingMode = mode; app.pendingCode = code;
     els.nickname.value = app.nickname || approvedNames[0];
     els.modePicker.hidden = intent === 'join';
@@ -678,21 +696,32 @@
   }
 
   function useIdentityThen(intent, options = {}) {
+    if (app.entryPending) return;
     if (!app.nickname) openSetup(intent, options);
     else launch(intent, options);
   }
 
   function launch(intent, options = {}) {
+    if (app.entryPending) return;
+    setEntryPending(true);
     const mode = options.mode || app.pendingMode || 'classic';
-    const identity = {nickname: app.nickname, playerId: app.playerId, mascot: app.mascot, difficulty: app.pendingDifficulty};
+    const identity = {nickname: app.nickname, playerId: app.playerId, mascot: app.mascot, difficulty: app.pendingDifficulty, protocolVersion: 2, resumeToken: app.resumeToken};
     if (intent === 'create') send({type: 'create', mode, ...identity});
     else if (intent === 'quick') send({type: 'quickJoin', mode, ...identity});
     else if (intent === 'join') send({type: 'join', code: options.code || app.pendingCode, ...identity});
   }
 
+  function setEntryPending(pending) {
+    app.entryPending = pending;
+    ['#quickButton', '#createButton', '#setupSubmit', '#joinForm button', '#practiceButton'].forEach(selector => { const button = $(selector); if (button) button.disabled = pending; });
+    els.lobby.setAttribute('aria-busy', String(pending));
+  }
+
   function setConnection(ok, label) {
     els.connection?.classList.toggle('connected', ok);
     if (els.connection) els.connection.lastChild.textContent = ` ${label}`;
+    $('#recoveryBanner').hidden = !app.desiredRoom || !app.awaitingState;
+    $('#recoveryMessage').textContent = navigator.onLine ? '연결을 복구하고 있어요. 복귀할 때까지 입력을 잠시 막아요.' : '인터넷 연결이 끊겼어요. 연결되면 자동으로 돌아가요.';
   }
 
   function toast(message) {
@@ -893,6 +922,7 @@
   });
   els.setupForm.addEventListener('submit', event => {
     event.preventDefault();
+    if (event.submitter?.value === 'cancel') { els.dialog.close(); return; }
     if (!approvedNames.includes(els.nickname.value)) { toast('준비된 별명 중에서 골라 주세요'); return; }
     app.nickname = els.nickname.value;
     localStorage.setItem('segulja-nickname', app.nickname);
@@ -917,7 +947,7 @@
     }
     const word = wordEntry.takeWord(explicitPointer);
     if (!word) return;
-    try { app.socket.send(JSON.stringify({type: 'word', word})); }
+    try { app.socket.send(JSON.stringify({type: 'word', word, round: app.room.round, turnCount: app.room.turnCount})); }
     catch { wordEntry.reject(); toast('전송하지 못했어요. 새 단어로 다시 시도해 주세요'); }
     syncInputControls();
   }
@@ -938,7 +968,7 @@
   els.hint.addEventListener('click', () => {
     if (app.socket?.readyState !== WebSocket.OPEN || app.awaitingState || !wordEntry.requestHint()) return;
     els.wordInput.focus({preventScroll: true});
-    try { app.socket.send(JSON.stringify({type: 'hint'})); }
+    try { app.socket.send(JSON.stringify({type: 'hint', round: app.room.round, turnCount: app.room.turnCount})); }
     catch { wordEntry.reject(); toast('힌트를 요청하지 못했어요. 다시 시도해 주세요'); }
     syncInputControls();
   });
@@ -1040,6 +1070,35 @@
   $('#menuEffects').addEventListener('click', () => { app.reducedEffects = !app.reducedEffects; localStorage.setItem('segulja-effects', app.reducedEffects ? 'calm' : 'full'); updatePlayPreferences(); });
   $('#mobileCrewChange').addEventListener('click', () => $('#crewTitle').scrollIntoView({block: 'start', behavior: app.reducedEffects ? 'instant' : 'smooth'}));
   updatePlayPreferences();
+  let practiceLesson = new KungPractice.Lesson();
+  const practiceInput = $('#practiceInput');
+  const practiceEntry = new KungInput.WordInput(practiceInput);
+  function renderPractice(message = '첫 글자에 맞춰 예시 단어를 입력하고 쿵! 또는 Enter를 눌러요.', result = '') {
+    $('#practiceStep').textContent = practiceLesson.done ? '연습 완료' : `${practiceLesson.index + 1} / 3 단계 · 제한 시간 없음`;
+    $('#practiceSyllable').textContent = practiceLesson.syllable;
+    $('#practiceExample').textContent = practiceLesson.done ? '자전거 → 거미줄 → 줄넘기' : practiceLesson.word;
+    $('#practiceForm').hidden = practiceLesson.done;
+    $('#practiceComplete').hidden = !practiceLesson.done;
+    $('#practiceFeedback').textContent = message;
+    $('#practiceFeedback').className = result;
+    $$('#practiceProgress i').forEach((element, index) => element.classList.toggle('done', index < practiceLesson.index));
+    $('#practiceProgress').setAttribute('aria-label', `${practiceLesson.index} / 3 단어 완료`);
+    practiceEntry.update(practiceLesson.done ? null : {roomCode: 'practice', phase: 'playing', round: practiceLesson.index, deadline: Number.MAX_SAFE_INTEGER, turnPlayerId: 'me', players: [{id: 'me', eliminated: false}]}, 'me');
+  }
+  $('#practiceButton').addEventListener('click', () => {
+    practiceLesson = new KungPractice.Lesson(); practiceEntry.reset(); renderPractice(); $('#practiceDialog').showModal();
+  });
+  $('#closePractice').addEventListener('click', () => $('#practiceDialog').close());
+  $('#restartPractice').addEventListener('click', () => { practiceLesson = new KungPractice.Lesson(); renderPractice(); });
+  $('#practicePlay').addEventListener('click', () => { $('#practiceDialog').close(); useIdentityThen('quick', {mode: 'classic'}); });
+  $('#practiceForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const value = practiceEntry.takeWord();
+    if (value === null) return;
+    const result = practiceLesson.submit(value);
+    practiceEntry.reject(); renderPractice(result.message, result.ok ? 'success' : 'error');
+    tone(result.ok ? 'word' : 'error');
+  });
   window.addEventListener('keydown', event => {
     const editing = event.target instanceof Element && event.target.closest('input,textarea,[contenteditable="true"]');
     if (event.key === '/' && !editing && !event.isComposing && wordEntry.active) {
@@ -1072,7 +1131,16 @@
   window.addEventListener('resize', updateInputViewport, {passive: true});
   window.visualViewport?.addEventListener('resize', updateInputViewport, {passive: true});
   window.visualViewport?.addEventListener('scroll', updateInputViewport, {passive: true});
-  window.addEventListener('pageshow', () => { wordEntry.reset(); updateInputViewport(); });
+  window.addEventListener('pageshow', () => { wordEntry.reset(); transport.check(); updateInputViewport(); });
+  $('#retryConnection').addEventListener('click', () => {
+    if (!app.desiredRoom || !navigator.onLine) return;
+    app.awaitingState = true; wordEntry.reset(); transport.close(); syncInputControls(); connect().catch(() => {});
+  });
+  $('#recoveryHome').addEventListener('click', requestGoHome);
+  window.addEventListener('online', () => { if (app.desiredRoom) connect().catch(() => {}); else loadLobby(); });
+  window.addEventListener('offline', () => {
+    if (app.desiredRoom) { app.awaitingState = true; wordEntry.reset(); syncInputControls(); setConnection(false, '오프라인'); transport.close(); }
+  });
   const unlockAudio = event => {
     const togglingSound = event.target instanceof Element && event.target.closest('#soundButton');
     if (app.sound && !togglingSound) { ensureAudio(); setMusicState(app.room); }
@@ -1080,6 +1148,7 @@
   window.addEventListener('pointerdown', unlockAudio, {once: true, capture: true});
   window.addEventListener('keydown', unlockAudio, {once: true, capture: true});
   document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { transport.check(); if (!app.room) loadLobby(); }
     if (!audioEngine.ctx) return;
     if (document.hidden) audioEngine.ctx.suspend().catch(() => {});
     else if (app.sound) audioEngine.ctx.resume().then(() => { audioEngine.nextStepAt = audioEngine.ctx.currentTime + .05; }).catch(() => {});
@@ -1107,7 +1176,10 @@
   });
   app.crewPage = Math.floor(app.mascot / crewPageSize());
   renderCrewGrid(); renderPassport();
-  loadLobby(); setInterval(() => { if (!app.room) loadLobby(); }, 5000); requestAnimationFrame(updateTimer);
+  loadLobby(); setInterval(() => { if (!app.room && !document.hidden && navigator.onLine) loadLobby(); }, 5000); requestAnimationFrame(updateTimer);
   const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (initialRoom?.length === 5) useIdentityThen('join', {code: initialRoom});
+  if (initialRoom?.length === 5) {
+    if (restoredSession?.roomCode === initialRoom && restoredSession.playerId === app.playerId && typeof restoredSession.resumeToken === 'string') app.resumeToken = restoredSession.resumeToken;
+    useIdentityThen('join', {code: initialRoom});
+  }
 })();
