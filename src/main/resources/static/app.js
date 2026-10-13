@@ -40,6 +40,8 @@
     .flatMap(prefix => ['탐험가', '항해사', '파일럿', '연구원'].map(role => prefix + role));
   els.nickname.replaceChildren(...approvedNames.map(name => new Option(name, name)));
   const crewCatalog = KungCrew;
+  const mobileQuery = window.matchMedia('(max-width: 760px)');
+  const crewPageSize = () => mobileQuery.matches ? 4 : 8;
   const crewNames = crewCatalog.map(crew => crew.name);
   const savedMascot = Number(localStorage.getItem('segulja-mascot'));
 
@@ -47,6 +49,8 @@
     socket: null, reconnectTimer: null, awaitingState: true, loadingLobby: false, room: null, playerId: localStorage.getItem('segulja-player') || `guest-${crypto.randomUUID()}`,
     nickname: approvedNames.includes(localStorage.getItem('segulja-nickname')) ? localStorage.getItem('segulja-nickname') : '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') !== 'off',
+    haptics: localStorage.getItem('segulja-haptics') !== 'off',
+    reducedEffects: localStorage.getItem('segulja-effects') === 'calm' || (!localStorage.getItem('segulja-effects') && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
     crewFilter: 'all', crewPage: 0, crewNotice: '',
     lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false, impactSerial: 0,
@@ -174,6 +178,8 @@
   }
 
   function goHome() {
+    if ($('#playMenu').open) $('#playMenu').close();
+    if ($('#shareDialog').open) $('#shareDialog').close();
     if (app.room && app.socket?.readyState === WebSocket.OPEN) {
       try { app.socket.send(JSON.stringify({type: 'leave'})); } catch { /* close also leaves the room */ }
     }
@@ -183,6 +189,7 @@
     clearTimeout(app.reconnectTimer); app.reconnectTimer = null; app.awaitingState = true; transport.close();
     history.replaceState({}, '', location.pathname);
     els.game.hidden = true; els.lobby.hidden = false; setMusicState(null); loadLobby();
+    window.scrollTo({top: 0, behavior: 'instant'});
   }
 
   function renderGame(room) {
@@ -234,13 +241,14 @@
     els.hintCount.textContent = hints;
     syncInputControls();
     els.wordInput.maxLength = room.mode.id === 'relay' ? 4 : 3;
-    els.wordInput.placeholder = myTurn ? `‘${requiredSyllable}’${particle} 시작하는 사전 명사` : '상대 차례 · 다음 글자를 기다려요';
+    els.wordInput.placeholder = mobileQuery.matches ? (myTurn ? '단어 입력' : '상대 차례') : myTurn ? `‘${requiredSyllable}’${particle} 시작하는 사전 명사` : '상대 차례 · 다음 글자를 기다려요';
     els.entryPrompt.textContent = myTurn ? `${requiredSyllable}${particle} 시작하는 ${room.mode.length} 명사` : room.phase === 'playing' ? `${current?.nickname || '상대'} 차례 · 다음 글자를 준비하세요` : `${room.mode.length} 단어로 출격 준비`;
     els.submitLabel.textContent = room.mode.id === 'relay' ? '단어 쿵!' : '세글자 쿵!';
     els.wordForm.querySelector('button').setAttribute('aria-label', `${room.mode.id === 'relay' ? '단어' : '세 글자'} 쿵, Enter 키로 제출`);
     els.wordForm.classList.remove('invalid');
     els.inputHint.classList.remove('invalid');
-    els.inputHint.textContent = myTurn ? `${room.mode.length} · 사전에 등록된 명사만 성공` : room.phase === 'playing' ? '상대 차례 · 키보드는 유지되고 다음 차례에 입력이 초기화돼요' : '시작 후 입력창을 눌러 단어를 입력하세요';
+    const hintReady = myTurn && wordEntry.committedReplacement && els.wordInput.value === wordEntry.committedReplacement;
+    els.inputHint.textContent = hintReady ? '힌트 단어가 입력됐어요 · 쿵!을 눌러 제출하세요' : myTurn ? `${room.mode.length} · 사전에 등록된 명사만 성공` : room.phase === 'playing' ? (mobileQuery.matches ? '상대 차례 · 다음 차례에 입력이 비워져요' : '상대 차례 · 키보드는 유지되고 다음 차례에 입력이 초기화돼요') : '시작 후 입력창을 눌러 단어를 입력하세요';
     els.start.hidden = room.phase !== 'waiting' || !isHost;
     els.rematch.hidden = room.phase !== 'finished' || !isHost;
     els.addBot.hidden = room.phase !== 'waiting' || !isHost || room.players.length >= 8;
@@ -252,6 +260,7 @@
     els.controls.hidden = room.phase === 'playing' || (!isHost && room.phase !== 'waiting');
     recordProgression(room);
     processMatchFeedback(room);
+    if ($('#playMenu').open) renderPlayMenu();
     // No asynchronous autofocus: a dismissed mobile keyboard must stay dismissed.
     updateInputViewport();
 
@@ -409,9 +418,10 @@
 
   function renderCrewGrid() {
     const choices = filteredCrew();
-    const pageCount = Math.max(1, Math.ceil(choices.length / 8));
+    const pageSize = crewPageSize();
+    const pageCount = Math.max(1, Math.ceil(choices.length / pageSize));
     app.crewPage = Math.max(0, Math.min(app.crewPage, pageCount - 1));
-    const cards = choices.slice(app.crewPage * 8, app.crewPage * 8 + 8).map(crew => {
+    const cards = choices.slice(app.crewPage * pageSize, app.crewPage * pageSize + pageSize).map(crew => {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'crew-card'; button.dataset.mascot = String(crew.id);
       const portrait = document.createElement('span'); portrait.className = 'mascot-sprite'; portrait.ariaHidden = 'true';
@@ -441,6 +451,9 @@
     });
     applyMascot($('#heroMascot'), app.mascot);
     applyMascot($('#setupMascot'), app.mascot);
+    applyMascot($('#mobileCrewPortrait'), app.mascot);
+    $('#mobileCrewName').textContent = crewNames[app.mascot];
+    $('#mobileDifficulty').textContent = {beginner: '초급', intermediate: '중급', advanced: '고급'}[app.pendingDifficulty] || '초급';
     $('#crewSelection').textContent = `${crewNames[app.mascot]}와 함께 출격해요 · 모든 캐릭터는 외형만 달라요`;
     $('#setupCrewName').textContent = `${crewNames[app.mascot]}와 함께 출격!`;
   }
@@ -591,6 +604,7 @@
   }
 
   function burstParticles(kind) {
+    if (app.reducedEffects) return;
     for (let index = 0; index < 18; index++) {
       const particle = document.createElement('i'); particle.className = `impact-particle ${kind}`;
       particle.style.setProperty('--angle', `${index * 20 + Math.random() * 12}deg`);
@@ -601,7 +615,7 @@
   }
 
   function vibrate(pattern) {
-    try { navigator.vibrate?.(pattern); } catch { /* haptics are optional */ }
+    if (app.haptics) try { navigator.vibrate?.(pattern); } catch { /* haptics are optional */ }
   }
 
   function updateTimer() {
@@ -693,6 +707,7 @@
   }
 
   function celebrate() {
+    if (app.reducedEffects) return;
     for (let i = 0; i < 24; i++) feedbackLater(() => flyReaction(['🎉','⭐','💥','👏'][i % 4], '승리'), i * 35);
   }
 
@@ -812,6 +827,7 @@
     els.sound.title = app.sound ? 'BGM 기본 켜짐 · 화면을 한 번 누르면 재생돼요' : 'BGM 꺼짐 · 눌러서 다시 켤 수 있어요';
     els.soundLabel.textContent = app.sound ? 'BGM ON' : 'BGM OFF';
     document.body.classList.toggle('music-on', app.sound);
+    $('#menuSound').setAttribute('aria-checked', String(app.sound));
   }
 
   function tone(kind) {
@@ -883,6 +899,7 @@
     app.pendingMode = $('input[name="mode"]:checked', els.modePicker)?.value || app.pendingMode;
     app.pendingDifficulty = $('input[name="difficulty"]:checked', els.setupDifficultyPicker)?.value || app.pendingDifficulty;
     localStorage.setItem('segulja-difficulty', app.pendingDifficulty);
+    renderCrewSelection();
     els.dialog.close(); launch(app.setupIntent, {mode: app.pendingMode, code: app.pendingCode});
   });
   function syncInputControls() {
@@ -935,10 +952,11 @@
   $$('[data-difficulty]').forEach(button => button.addEventListener('click', () => {
     app.pendingDifficulty = button.dataset.difficulty;
     localStorage.setItem('segulja-difficulty', app.pendingDifficulty);
+    renderCrewSelection();
     send({type: 'setDifficulty', difficulty: app.pendingDifficulty});
   }));
-  $('#leaveButton').addEventListener('click', goHome);
-  $$('[data-go-home]').forEach(button => button.addEventListener('click', goHome));
+  $('#leaveButton').addEventListener('click', requestGoHome);
+  $$('[data-go-home]').forEach(button => button.addEventListener('click', requestGoHome));
   $$('.reactions button').forEach(button => button.addEventListener('click', () => {
     if (!app.room || app.socket?.readyState !== WebSocket.OPEN) return;
     progression.record('react');
@@ -960,7 +978,7 @@
   }
   $('#shareButton').addEventListener('click', shareRoom); $('#waitingShareButton').addEventListener('click', shareRoom); $('#mobileShareButton').addEventListener('click', shareRoom); els.roomCodeButton.addEventListener('click', shareRoom);
   setMusicState(null); updateSoundButton();
-  els.sound.addEventListener('click', async () => {
+  async function toggleSound() {
     app.sound = !app.sound; localStorage.setItem('segulja-sound', app.sound ? 'on' : 'off');
     updateSoundButton();
     if (app.sound) {
@@ -970,7 +988,58 @@
       audioEngine.master.gain.setTargetAtTime(.0001, audioEngine.ctx.currentTime, .04);
       setTimeout(() => { if (!app.sound) audioEngine.ctx?.suspend().catch(() => {}); }, 260);
     }
-  });
+  }
+  els.sound.addEventListener('click', toggleSound);
+  $('#menuSound').addEventListener('click', toggleSound);
+
+  function updatePlayPreferences() {
+    $('#menuHaptics').setAttribute('aria-checked', String(app.haptics));
+    $('#menuEffects').setAttribute('aria-checked', String(app.reducedEffects));
+    document.body.classList.toggle('calm-effects', app.reducedEffects);
+  }
+
+  function renderPlayMenu() {
+    const room = app.room;
+    $('#playMenuTitle').textContent = room ? '게임 메뉴' : '플레이 설정';
+    $('#menuGameNotice').hidden = room?.phase !== 'playing';
+    $('#menuRoom').hidden = !room; $('#menuLeaveButton').hidden = !room;
+    $('#menuRoomCode').textContent = room?.roomCode || '-----';
+    $('#menuHistorySection').hidden = !room;
+    const words = [...(room?.history || [])].slice(-12).reverse();
+    $('#menuHistoryCount').textContent = `${room?.history?.length || 0}개 · 최근 12개`;
+    $('#menuHistory').replaceChildren(...words.map(play => {
+      const item = document.createElement('li');
+      const copy = document.createElement('span'), word = document.createElement('strong'), name = document.createElement('small'), points = document.createElement('b');
+      word.textContent = play.word; name.textContent = play.nickname; points.textContent = `+${play.points}`;
+      copy.append(word, name); item.append(copy, points); return item;
+    }));
+    if (!words.length) {
+      const empty = document.createElement('li'); empty.className = 'menu-history-empty'; empty.textContent = '첫 단어가 성공하면 기록이 쌓여요.'; $('#menuHistory').append(empty);
+    }
+    updateSoundButton(); updatePlayPreferences();
+  }
+
+  function openPlayMenu() {
+    $('#menuExitConfirm').hidden = true;
+    renderPlayMenu(); if (!$('#playMenu').open) $('#playMenu').showModal();
+  }
+
+  function requestGoHome() {
+    if (app.room?.phase !== 'playing') { goHome(); return; }
+    openPlayMenu(); $('#menuExitConfirm').hidden = false;
+  }
+
+  ['#mobileSettingsButton', '#mobileGameMenuButton', '#resultHistoryButton'].forEach(selector => $(selector).addEventListener('click', openPlayMenu));
+  $('#closePlayMenu').addEventListener('click', () => $('#playMenu').close());
+  $('#playMenu').addEventListener('close', () => { $('#menuExitConfirm').hidden = true; });
+  $('#menuLeaveButton').addEventListener('click', requestGoHome);
+  $('#confirmMenuExit').addEventListener('click', goHome);
+  $('#cancelMenuExit').addEventListener('click', () => $('#playMenu').close());
+  $('#menuShareButton').addEventListener('click', () => { $('#playMenu').close(); shareRoom(); });
+  $('#menuHaptics').addEventListener('click', () => { app.haptics = !app.haptics; localStorage.setItem('segulja-haptics', app.haptics ? 'on' : 'off'); updatePlayPreferences(); });
+  $('#menuEffects').addEventListener('click', () => { app.reducedEffects = !app.reducedEffects; localStorage.setItem('segulja-effects', app.reducedEffects ? 'calm' : 'full'); updatePlayPreferences(); });
+  $('#mobileCrewChange').addEventListener('click', () => $('#crewTitle').scrollIntoView({block: 'start', behavior: app.reducedEffects ? 'instant' : 'smooth'}));
+  updatePlayPreferences();
   window.addEventListener('keydown', event => {
     const editing = event.target instanceof Element && event.target.closest('input,textarea,[contenteditable="true"]');
     if (event.key === '/' && !editing && !event.isComposing && wordEntry.active) {
@@ -1030,10 +1099,13 @@
   $('#crewRandom').addEventListener('click', () => {
     const choices = filteredCrew().filter(crew => crew.id !== app.mascot);
     app.mascot = choices[Math.floor(Math.random() * choices.length)].id;
-    app.crewPage = Math.floor(filteredCrew().findIndex(crew => crew.id === app.mascot) / 8);
+    app.crewPage = Math.floor(filteredCrew().findIndex(crew => crew.id === app.mascot) / crewPageSize());
     localStorage.setItem('segulja-mascot', String(app.mascot)); renderCrewGrid(); tone('reaction');
   });
-  app.crewPage = Math.floor(app.mascot / 8);
+  mobileQuery.addEventListener('change', () => {
+    app.crewPage = Math.max(0, Math.floor(filteredCrew().findIndex(crew => crew.id === app.mascot) / crewPageSize())); renderCrewGrid();
+  });
+  app.crewPage = Math.floor(app.mascot / crewPageSize());
   renderCrewGrid(); renderPassport();
   loadLobby(); setInterval(() => { if (!app.room) loadLobby(); }, 5000); requestAnimationFrame(updateTimer);
   const initialRoom = new URLSearchParams(location.search).get('room')?.toUpperCase().replace(/[^A-Z0-9]/g, '');

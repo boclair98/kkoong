@@ -14,15 +14,17 @@
   check('catalog-contains-24-unique-identities', KungCrew.length === 24 && new Set(KungCrew.map(c => c.id)).size === 24);
   $('[data-crew-filter="all"]').click();
   const ids = [];
-  for (let page = 0; page < 3; page++) {
-    check('page-' + (page + 1) + '-renders-eight-cards', cards().length === 8);
+  const pageSize = innerWidth <= 760 ? 4 : 8;
+  const pageCount = 24 / pageSize;
+  for (let page = 0; page < pageCount; page++) {
+    check('page-' + (page + 1) + '-renders-correct-card-count', cards().length === pageSize);
     ids.push(...cards().map(card => Number(card.dataset.mascot)));
-    if (page < 2) $('#crewNext').click();
+    if (page < pageCount - 1) $('#crewNext').click();
   }
   check('pagination-reaches-every-character-once', ids.length === 24 && new Set(ids).size === 24 && $('#crewNext').disabled);
   for (const [group, count] of [['explorers', 8], ['aliens', 6], ['robots', 6]]) {
     $('[data-crew-filter="' + group + '"]').click();
-    check(group + '-filter-matches-catalog', cards().length === count && cards().every(card => KungCrew[Number(card.dataset.mascot)].group === group));
+    check(group + '-filter-matches-catalog', cards().length === Math.min(pageSize, count) && cards().every(card => KungCrew[Number(card.dataset.mascot)].group === group));
   }
   const loaded = await Promise.all(KungCrew.filter(c => !c.atlas).map(crew => new Promise((resolve, reject) => {
     const img = new Image();
@@ -31,21 +33,23 @@
     img.src = crew.image;
   })));
   check('all-20-ai-portraits-load-at-512px', loaded.length === 20);
+  $('[data-crew-filter="robots"]').click();
   $('#crewGrid [data-mascot="18"]').click();
   check('chosen-robot-updates-storage-and-hero', localStorage.getItem('segulja-mascot') === '18' && $('#heroMascot').dataset.mascot === '18');
   $('#crewRandom').click();
   const random = Number(localStorage.getItem('segulja-mascot'));
   check('random-picks-a-different-visible-group-character', random !== 18 && KungCrew[random].group === 'robots' && $('#crewGrid [aria-pressed="true"]').dataset.mascot === String(random));
+  $('[data-crew-filter="robots"]').click();
   $('#crewGrid [data-mascot="18"]').click();
   check('lobby-has-no-horizontal-overflow', document.documentElement.scrollWidth <= innerWidth + 1);
   $('#createButton').click();
   check('setup-shows-selected-character', $('#setupDialog').open && $('#setupMascot').dataset.mascot === '18');
   $('#nicknameInput').value = '별빛탐험가';
   $('#setupForm').requestSubmit($('#setupSubmit'));
-  await until(() => !$('#gameScreen').hidden && document.querySelectorAll('.player-card').length === 1);
+  await until(() => !$('#gameScreen').hidden && document.querySelectorAll('.player-card[data-player-id]').length === 1);
   for (let i = 0; i < 7; i++) {
     $('#addBotButton').click();
-    await until(() => document.querySelectorAll('.player-card').length === i + 2);
+    await until(() => document.querySelectorAll('.player-card[data-player-id]').length === i + 2);
   }
   const avatars = [...document.querySelectorAll('.player-card .avatar')];
   check('server-keeps-human-selected-character', avatars[0].dataset.mascot === '18');

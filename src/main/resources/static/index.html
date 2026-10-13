@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="/progression.css?v=20260914-01">
   <link rel="stylesheet" href="/orbit-redesign.css?v=20261012-04">
   <link rel="stylesheet" href="/stitch-ui.css?v=20261013-04">
+  <link rel="stylesheet" href="/mobile-ui.css?v=20261013-02">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -40,6 +41,7 @@
       <button class="icon-button" id="soundButton" type="button" aria-label="배경음악 끄기" aria-pressed="true" title="BGM 기본 켜짐 · 화면을 한 번 누르면 재생돼요">
         <span class="music-bars" aria-hidden="true"><i></i><i></i><i></i></span><b id="soundLabel">BGM ON</b>
       </button>
+      <button class="mobile-settings-button" type="button" id="mobileSettingsButton" aria-label="플레이 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg></button>
     </div>
   </header>
 
@@ -51,10 +53,13 @@
         <h1 id="heroTitle"><span>세 글자로</span><em>우주를 쿵!</em></h1>
         <p class="hero-description">마지막 음절을 이어 단어 궤도를 완성하세요.<br>가짜 단어는 통과 불가—순발력과 어휘력으로 승부합니다.</p>
         <div class="hero-buttons">
-          <button class="button button-primary button-xl" id="quickButton" type="button"><span class="play-symbol" aria-hidden="true">▶</span> 빠른 매칭 시작</button>
+          <button class="button button-primary button-xl" id="quickButton" type="button" aria-label="빠른 매칭 시작"><span class="play-symbol" aria-hidden="true">▶</span><span class="desktop-cta" aria-hidden="true">빠른 매칭 시작</span><span class="mobile-cta" aria-hidden="true">빠른 매칭</span></button>
           <button class="button button-ghost button-xl" id="createButton" type="button">친구 방 만들기</button>
         </div>
         <p class="microcopy"><i></i> 가입 없음 <b>·</b> 완전 무료 <b>·</b> 광고와 결제 없음</p>
+        <button class="mobile-crew-preview" id="mobileCrewChange" type="button" aria-label="내 캐릭터 변경">
+          <span id="mobileCrewPortrait" class="mascot-sprite" aria-hidden="true"></span><span><small>함께 출격할 크루</small><strong id="mobileCrewName">루미</strong></span><span class="mobile-crew-meta"><b id="mobileDifficulty">초급</b><small>변경하기</small></span>
+        </button>
       </div>
 
       <div class="hero-stage" aria-label="세글자쿵 게임 규칙 미리보기">
@@ -213,6 +218,7 @@
             <div><span class="mode-dot"></span><b id="gameMode">클래식 쿵</b><small id="gameRule">3글자 · 12초</small></div>
             <div class="round-chip"><small>라운드</small><strong id="roundCount">01</strong></div>
             <button class="mobile-room-button" id="mobileShareButton" type="button"><small>방 코드</small> <b id="mobileRoomCode">-----</b> ↗</button>
+            <button class="game-menu-button" id="mobileGameMenuButton" type="button" aria-label="게임 메뉴 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/></svg><span>메뉴</span></button>
             <div id="connectionStatus" class="connection connected"><i></i> 연결됨</div>
           </div>
           <div id="feverBanner" class="fever-banner" aria-live="polite">🔥 피버 타임! 점수 2배</div>
@@ -223,7 +229,7 @@
                 <i class="turn-beacon" aria-hidden="true"></i>
               </div>
               <div class="combatant-name"><strong id="activePilot">탐사대 대기 중</strong><small id="mascotMood">READY</small></div>
-              <div class="timer-ring" id="timerRing" style="--progress:1">
+              <div class="timer-ring" id="timerRing" role="timer" aria-label="남은 시간" aria-live="off" style="--progress:1">
                 <div class="timer-core"><small>남은 시간</small><strong id="timerText">12.0</strong><span>초</span></div>
               </div>
             </div>
@@ -276,7 +282,7 @@
               <div><h3 id="resultScoreTitle">이번 항로 순위</h3><span>우승자 · 최종 점수</span></div>
               <ol id="resultRanking"></ol>
             </section>
-            <button class="text-button result-home" type="button" data-go-home>로비로 돌아가기</button>
+            <div class="result-actions"><button class="text-button result-history" id="resultHistoryButton" type="button">단어 기록</button><button class="text-button result-home" type="button" data-go-home>로비로 돌아가기</button></div>
           </section>
         </section>
 
@@ -326,6 +332,19 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="playMenu" class="play-menu" aria-labelledby="playMenuTitle">
+    <div class="play-menu-heading"><div><span>MY ORBIT</span><h2 id="playMenuTitle">플레이 설정</h2></div><button id="closePlayMenu" class="sheet-close" type="button" aria-label="메뉴 닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <p id="menuGameNotice" class="menu-notice" hidden>실시간 게임은 메뉴를 열어도 시간이 계속 흘러요.</p>
+    <div id="menuRoom" class="menu-room" hidden><span>친구 초대 코드 <strong id="menuRoomCode">-----</strong></span><button id="menuShareButton" type="button">초대하기</button></div>
+    <div class="play-preferences">
+      <button id="menuSound" class="preference-row" type="button" role="switch" aria-checked="true" aria-label="배경음악"><span><strong>배경음악</strong><small>박자에 맞춰 더 신나는 대결</small></span><i aria-hidden="true"></i></button>
+      <button id="menuHaptics" class="preference-row" type="button" role="switch" aria-checked="true" aria-label="진동 효과"><span><strong>진동 효과</strong><small>지원하는 기기에서 성공과 실패를 느껴요</small></span><i aria-hidden="true"></i></button>
+      <button id="menuEffects" class="preference-row" type="button" role="switch" aria-checked="false" aria-label="가벼운 연출"><span><strong>가벼운 연출</strong><small>움직임과 입자 효과를 줄여 편하게</small></span><i aria-hidden="true"></i></button>
+    </div>
+    <section id="menuHistorySection" class="menu-history" aria-labelledby="menuHistoryTitle" hidden><div><h3 id="menuHistoryTitle">최근 단어 기록</h3><span id="menuHistoryCount">0개</span></div><ol id="menuHistory"></ol></section>
+    <button id="menuLeaveButton" class="menu-leave" type="button" hidden>방 나가기</button>
+    <div id="menuExitConfirm" class="menu-exit-confirm" hidden><p>진행 중인 방에서 나갈까요?</p><div><button id="cancelMenuExit" type="button">계속 플레이</button><button id="confirmMenuExit" type="button">나가기</button></div></div>
+  </dialog>
   <dialog id="shareDialog" class="setup-dialog" aria-labelledby="shareTitle">
     <form method="dialog">
       <span class="dialog-kicker">친구와 함께 출격</span><h2 id="shareTitle">친구 초대 링크</h2>
@@ -339,6 +358,6 @@
   <script src="/game-input.js?v=20260906-16" defer></script>
   <script src="/game-client.js?v=20261013-02" defer></script>
   <script src="/progression.js?v=20260914-01" defer></script>
-  <script src="/app.js?v=20261013-05" defer></script>
+  <script src="/app.js?v=20261013-07" defer></script>
 </body>
 </html>
