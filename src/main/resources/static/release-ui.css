@@ -29,6 +29,7 @@
 #practiceFeedback.error { color: #ffc4c4; }
 .practice-actions { display: flex; gap: 8px; }
 .practice-actions .button { flex: 1; min-height: 48px; }
+.practice-actions .button-secondary { border: 1px solid #7197b4; background: #22394d; color: #e3f2ff; }
 .practice-dialog [hidden], .recovery-banner[hidden] { display: none !important; }
 @media (max-width: 760px) {
   .recovery-banner { top: max(12px, env(safe-area-inset-top)); }
