@@ -66,6 +66,8 @@ final class GameRoom {
         int mascot;
         int hintsRemaining = 3;
         int wordsPlayed;
+        int bestStreak;
+        long fastestWordMillis;
         final String resumeToken = UUID.randomUUID().toString();
         boolean protectedResume;
         long disconnectedAt;

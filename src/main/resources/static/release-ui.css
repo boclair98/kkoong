@@ -31,9 +31,39 @@
 .practice-actions .button { flex: 1; min-height: 48px; }
 .practice-actions .button-secondary { border: 1px solid #7197b4; background: #22394d; color: #e3f2ff; }
 .practice-dialog [hidden], .recovery-banner[hidden] { display: none !important; }
+.mobile-settings-button { width: 44px; min-height: 44px; display: grid; place-items: center; border: 1px solid #8399b560; border-radius: 14px; color: #d6e8f5; background: #152438; cursor: pointer; }
+.draft-guide { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 2px 0; color: #b6c9dd; font-size: 12px; line-height: 1.5; }
+.draft-guide span { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.draft-guide b { flex-shrink: 0; color: #b9dce7; font-variant-numeric: tabular-nums; }
+.draft-guide[data-state="ready"] b { color: #a0f1df; }
+.draft-guide[hidden], .round-report[hidden] { display: none !important; }
+.volume-control { display: block; margin: 0; padding: 0 4px 10px; color: #c2d6e8; font-size: 13px; }
+.volume-control > span { display: flex; justify-content: space-between; }
+.volume-control output { color: #a4f1e3; font-variant-numeric: tabular-nums; }
+.volume-control input { display: block; width: 100%; height: 44px; margin: 0; accent-color: #92e7d5; cursor: pointer; }
+.volume-control input:focus-visible { outline: 2px solid #83eee4; outline-offset: 2px; border-radius: 8px; }
+.audio-status { margin: 0 0 12px; color: #b2c7dc; font-size: 12px; line-height: 1.6; word-break: keep-all; }
+.round-report { grid-column: 1 / -1; width: 100%; min-width: 0; padding: 14px; border: 1px solid #72c9bc42; border-radius: 16px; background: #122a36; text-align: left; }
+.round-report h3 { margin: 0 0 12px; color: #d8f5ef; font-size: 14px; }
+.round-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.round-metrics > div { min-width: 0; }
+.round-metrics strong { display: block; color: #9bf0dd; font-size: 20px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.round-metrics span { display: block; margin-top: 3px; color: #bed1dd; font-size: 12px; line-height: 1.5; word-break: keep-all; }
+.round-report p { margin: 12px 0 6px; color: #e1edf4; font-size: 13px; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
+.round-report small { display: block; color: #9db6c6; font-size: 11px; line-height: 1.5; word-break: keep-all; }
+.result-history { display: inline-flex; align-items: center; min-height: 44px; }
+.game-screen[data-phase="finished"] .game-shell { min-height: 0; }
+.game-screen[data-phase="finished"] .arena { min-height: 0; padding: 0; }
+.game-screen[data-phase="finished"] .result-overlay { position: relative; inset: auto; overflow: hidden; align-content: start; }
+.game-screen[data-phase="finished"] .game-controls { position: static; transform: none; width: min(100%, 440px); margin: 14px auto 20px; }
+.game-screen[data-phase="finished"] .result-actions { display: flex; grid-column: 1 / -1; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
 @media (max-width: 760px) {
   .recovery-banner { top: max(12px, env(safe-area-inset-top)); }
   .practice-dialog { padding: 20px; max-height: 88dvh; }
   .practice-dialog h2 { font-size: 23px; }
   .hero-help { margin-bottom: 8px; }
+  .play-menu { max-width: 100%; box-sizing: border-box; }
+  .round-report { margin-top: 12px; padding: 12px; }
+  .round-metrics strong { font-size: 18px; }
+  .game-input-active .draft-guide { padding-top: 2px; font-size: 12px; }
 }

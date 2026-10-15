@@ -268,6 +268,8 @@ public class RoomService {
             player.streak = 0;
             player.hintsRemaining = HINTS_PER_ROUND;
             player.wordsPlayed = 0;
+            player.bestStreak = 0;
+            player.fastestWordMillis = 0;
             player.eliminated = !player.bot && !player.connected;
         });
         room.eventText = "첫 글자는 ‘" + room.requiredSyllable + "’ — 리듬 시작!";
@@ -307,6 +309,9 @@ public class RoomService {
         if (fever) points *= 2;
         player.score += points;
         player.streak++;
+        player.bestStreak = Math.max(player.bestStreak, player.streak);
+        long elapsed = Math.max(1, System.currentTimeMillis() - room.turnStartedAt);
+        if (player.fastestWordMillis == 0 || elapsed < player.fastestWordMillis) player.fastestWordMillis = elapsed;
         player.wordsPlayed++;
         room.combo++;
         room.lastWord = word;
@@ -674,6 +679,9 @@ public class RoomService {
             item.put("wins", player.wins);
             item.put("hints", player.hintsRemaining);
             item.put("wordsPlayed", player.wordsPlayed);
+            item.put("bestStreak", player.bestStreak);
+            item.put("fastestWordMillis", player.fastestWordMillis);
+            item.put("hintsUsed", HINTS_PER_ROUND - player.hintsRemaining);
             item.put("host", player.id.equals(room.hostId));
             return item;
         }).toList());

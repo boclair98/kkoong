@@ -66,6 +66,10 @@ async function get(path) {
     returning.send({type: 'word', word: hint.word, round: playing.round, turnCount: playing.turnCount});
     const accepted = await returning.wait(m => m.type === 'state' && m.history.some(p => p.playerId === hostId));
     assert.equal(accepted.players.find(p => p.id === hostId).wordsPlayed, 1);
+    const metrics = accepted.players.find(p => p.id === hostId);
+    assert.equal(metrics.bestStreak, 1);
+    assert.equal(metrics.hintsUsed, 1);
+    assert.ok(metrics.fastestWordMillis > 0 && metrics.fastestWordMillis <= playing.mode.turnSeconds * 1000);
     assert.equal((await get('/api/word/check?word=' + encodeURIComponent(hint.word))).known, true);
     for (const p of sockets) if (p.socket.readyState === 1) p.send({type: 'leave'});
     let listed = true;
@@ -74,7 +78,7 @@ async function get(path) {
       listed = (await get('/api/lobby')).rooms.some(room => room.code === code);
     }
     assert.equal(listed, false, 'test room must leave the lobby after explicit exit');
-    console.log('PASS: health, one-room membership, private resume, takeover rejection, unique crew, host/character recovery, valid word, whole-round count, cleanup');
+    console.log('PASS: health, one-room membership, private resume, takeover rejection, unique crew, host/character recovery, valid word, round metrics, whole-round count, cleanup');
   } finally {
     for (const p of sockets) if (p.socket.readyState === 1) { p.send({type: 'leave'}); p.socket.close(); }
   }

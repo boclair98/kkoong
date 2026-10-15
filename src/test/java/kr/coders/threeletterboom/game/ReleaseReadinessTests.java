@@ -44,6 +44,38 @@ class ReleaseReadinessTests {
         send(peer, Map.of("type", "join", "code", room.code, "nickname", "은하항해사", "playerId", id, "protocolVersion", 2, "resumeToken", token));
     }
 
+    @Test void personalRoundMetricsComeFromAcceptedWordsAndResetOnRematch() throws Exception {
+        var first = peer("metrics"); GameRoom room = create(first, "guest-metrics");
+        when(dictionary.pickStarter(GameMode.CLASSIC)).thenReturn("자");
+        when(dictionary.isKnown("자전거")).thenReturn(true);
+        send(first, Map.of("type", "start"));
+        synchronized (room) {
+            var player = room.players.get("guest-metrics");
+            send(first, Map.of("type", "word", "word", "wrong"));
+            assertEquals(0, player.fastestWordMillis); assertEquals(0, player.bestStreak);
+            room.turnStartedAt = System.currentTimeMillis() - 1500;
+            send(first, Map.of("type", "word", "word", "자전거"));
+            assertTrue(player.fastestWordMillis >= 1500); assertEquals(1, player.bestStreak);
+            room.turnStartedAt = System.currentTimeMillis() - 500;
+            ReflectionTestUtils.invokeMethod(service, "acceptWord", room, player, "거미줄");
+            assertTrue(player.fastestWordMillis >= 500 && player.fastestWordMillis < 1500);
+            assertEquals(2, player.bestStreak);
+            player.streak = 0;
+            room.turnStartedAt = System.currentTimeMillis() - 2000;
+            ReflectionTestUtils.invokeMethod(service, "acceptWord", room, player, "줄넘기");
+            assertEquals(2, player.bestStreak);
+            assertTrue(player.fastestWordMillis < 1500);
+            player.hintsRemaining = 1;
+            ReflectionTestUtils.invokeMethod(service, "broadcastState", room);
+            var snapshot = first.last("state").get("players").get(0);
+            assertEquals(2, snapshot.get("bestStreak").asInt());
+            assertEquals(2, snapshot.get("hintsUsed").asInt());
+            ReflectionTestUtils.invokeMethod(service, "resetRound", room);
+            assertEquals(0, player.fastestWordMillis); assertEquals(0, player.bestStreak);
+            assertEquals(3, player.hintsRemaining);
+        }
+    }
+
     @Test void oneSocketCannotCreateGhostRoomsOrOccupyTwoRooms() throws Exception {
         var first = peer("first"); var second = peer("second");
         GameRoom one = create(first, "guest-first"); GameRoom two = create(second, "guest-second");

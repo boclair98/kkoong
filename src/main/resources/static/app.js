@@ -55,6 +55,9 @@
     nickname: approvedNames.includes(localStorage.getItem('segulja-nickname')) ? localStorage.getItem('segulja-nickname') : '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') !== 'off',
     haptics: localStorage.getItem('segulja-haptics') !== 'off',
+    effectsSound: (localStorage.getItem('segulja-sfx') || localStorage.getItem('segulja-sound')) !== 'off',
+    musicVolume: KungQuality.volume(localStorage.getItem('segulja-music-volume')),
+    effectsVolume: KungQuality.volume(localStorage.getItem('segulja-effects-volume')),
     reducedEffects: localStorage.getItem('segulja-effects') === 'calm' || (!localStorage.getItem('segulja-effects') && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
     crewFilter: 'all', crewPage: 0, crewNotice: '',
@@ -72,6 +75,8 @@
     write: value => localStorage.setItem('segulja-passport-v1', value)
   });
   sessionStore.setItem('segulja-tab-player', app.playerId);
+  // Migrate the former combined mute preference once, before BGM is changed independently.
+  if (localStorage.getItem('segulja-sfx') === null) localStorage.setItem('segulja-sfx', app.effectsSound ? 'on' : 'off');
 
   function socketUrl() {
     return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/game`;
@@ -272,7 +277,10 @@
       $$('[data-difficulty]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.difficulty === room.difficulty?.id)));
     }
     els.waitingCopy.hidden = room.phase === 'playing';
-    els.controls.hidden = room.phase === 'playing' || (!isHost && room.phase !== 'waiting');
+    els.waitingCopy.textContent = room.phase === 'finished'
+      ? (isHost ? '같은 크루와 새 판을 시작해요. 이번 판 기록은 초기화돼요.' : '방장이 재경기를 시작하면 함께 출격해요.')
+      : (isHost ? '친구를 기다리거나 쿵봇을 불러 바로 시작하세요' : '방장이 시작하면 함께 출격해요.');
+    els.controls.hidden = room.phase === 'playing';
     recordProgression(room);
     processMatchFeedback(room);
     if ($('#playMenu').open) renderPlayMenu();
@@ -502,6 +510,14 @@
     els.resultRank.textContent = myRank === null ? '관전' : `${myRank}위`;
     els.resultWords.textContent = String(myWords);
     els.resultPlayers.textContent = `${room.players.length}명`;
+    const report = KungQuality.roundReport(me);
+    $('#roundReport').hidden = !report;
+    if (report) {
+      $('#roundFastest').textContent = report.speed;
+      $('#roundStreak').textContent = report.streak;
+      $('#roundHints').textContent = report.hints;
+      $('#roundCoaching').textContent = report.coaching;
+    }
     els.resultRanking.replaceChildren(...ranking.map((player, index) => {
       const item = document.createElement('li');
       item.className = player.id === app.playerId ? 'result-player mine' : 'result-player';
@@ -747,16 +763,17 @@
         if (!AudioContextClass) return null;
         const ctx = new AudioContextClass();
         const master = ctx.createGain(), music = ctx.createGain(), sfx = ctx.createGain(), compressor = ctx.createDynamicsCompressor();
-        master.gain.value = app.sound ? .82 : .0001; music.gain.value = .0001; sfx.gain.value = .72;
+        master.gain.value = .82; music.gain.value = 0; sfx.gain.value = 0;
         compressor.threshold.value = -18; compressor.knee.value = 18; compressor.ratio.value = 4; compressor.attack.value = .006; compressor.release.value = .22;
         music.connect(master); sfx.connect(master); master.connect(compressor).connect(ctx.destination);
         const noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * .15), ctx.sampleRate), data = noise.getChannelData(0);
         for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
         Object.assign(audioEngine, {ctx, master, music, sfx, compressor, noise, nextStepAt: ctx.currentTime + .05});
         audioEngine.scheduler = setInterval(scheduleMusic, 70);
+        ctx.addEventListener('statechange', updateAudioStatus);
       }
-      audioEngine.master.gain.setTargetAtTime(app.sound ? .82 : .0001, audioEngine.ctx.currentTime, .025);
-      if (app.sound && audioEngine.ctx.state === 'suspended') audioEngine.ctx.resume().catch(() => {});
+      applyAudioMix();
+      if (audioMix().audible && audioEngine.ctx.state === 'suspended' && !document.hidden) audioEngine.ctx.resume().catch(updateAudioStatus);
       return audioEngine.ctx;
     } catch { return null; }
   }
@@ -824,7 +841,7 @@
 
   function scheduleMusic() {
     const ctx = audioEngine.ctx;
-    if (!app.sound || !ctx || ctx.state !== 'running') return;
+    if (!app.sound || app.musicVolume === 0 || !ctx || ctx.state !== 'running') return;
     if (audioEngine.nextStepAt < ctx.currentTime - .2 || audioEngine.nextStepAt > ctx.currentTime + 1) audioEngine.nextStepAt = ctx.currentTime + .04;
     while (audioEngine.nextStepAt < ctx.currentTime + .2) {
       scheduleMusicStep(audioEngine.nextStepAt, audioEngine.step);
@@ -839,8 +856,7 @@
     document.body.dataset.audioScene = audioEngine.scene;
     if (audioEngine.scene !== 'playing') setMusicUrgency(0);
     if (!audioEngine.ctx) return;
-    const target = !app.sound ? .0001 : ({lobby: .14, waiting: .22, playing: .34, finished: .18}[audioEngine.scene] || .18);
-    audioEngine.music.gain.setTargetAtTime(target, audioEngine.ctx.currentTime, .18);
+    applyAudioMix();
   }
 
   function setMusicUrgency(level) {
@@ -857,10 +873,34 @@
     els.soundLabel.textContent = app.sound ? 'BGM ON' : 'BGM OFF';
     document.body.classList.toggle('music-on', app.sound);
     $('#menuSound').setAttribute('aria-checked', String(app.sound));
+    $('#menuSfx').setAttribute('aria-checked', String(app.effectsSound));
+    for (const key of ['musicVolume', 'effectsVolume']) {
+      $(`#${key}`).value = app[key];
+      $(`#${key}Value`).textContent = `${app[key]}%`;
+    }
+    updateAudioStatus();
+  }
+
+  function audioMix() {
+    return KungQuality.audioMix({musicEnabled: app.sound, effectsEnabled: app.effectsSound,
+      musicVolume: app.musicVolume, effectsVolume: app.effectsVolume, scene: audioEngine.scene});
+  }
+  function applyAudioMix() {
+    if (!audioEngine.ctx) return;
+    const mix = audioMix(), now = audioEngine.ctx.currentTime;
+    audioEngine.music.gain.setTargetAtTime(mix.music, now, .06);
+    audioEngine.sfx.gain.setTargetAtTime(mix.effects, now, .025);
+    updateAudioStatus();
+  }
+  function updateAudioStatus() {
+    const mix = audioMix();
+    $('#audioStatus').textContent = !mix.audible ? '모든 소리가 꺼져 있어요.'
+      : audioEngine.ctx?.state === 'running' ? '소리 준비 완료 · 기기 음량과 무음 모드도 확인해 주세요.'
+      : '화면을 한 번 누르면 소리가 시작돼요. 기기 음량도 확인해 주세요.';
   }
 
   function tone(kind) {
-    if (!app.sound) return;
+    if (!app.effectsSound || app.effectsVolume === 0) return;
     const ctx = ensureAudio(); if (!ctx) return;
     const oscillator = ctx.createOscillator(), gain = ctx.createGain();
     const notes = {word: 420, fever: 620, reaction: 520, error: 150, hint: 300, win: 760};
@@ -938,6 +978,18 @@
     els.wordForm.setAttribute('aria-busy', String(wordEntry.pending));
     const hints = app.room?.players.find(player => player.id === app.playerId)?.hints ?? 0;
     els.hint.disabled = !connected || !wordEntry.canSubmit || Boolean(wordEntry.hintKey) || hints <= 0;
+    renderDraftGuide();
+  }
+
+  function renderDraftGuide() {
+    const guide = $('#draftGuide');
+    guide.hidden = !wordEntry.active;
+    if (!wordEntry.active) return;
+    const draft = KungQuality.draftGuide(els.wordInput.value, app.room?.mode.id, wordEntry.composing);
+    guide.dataset.state = draft.state;
+    $('#draftCount').textContent = draft.label;
+    $('#draftMessage').textContent = wordEntry.pending ? '서버에서 판정 중…'
+      : !wordEntry.myTurn ? '상대 차례 · 다음 차례에 초기화' : draft.message;
   }
 
   function submitWord(explicitPointer = false) {
@@ -964,7 +1016,9 @@
   els.wordInput.addEventListener('input', () => {
     els.wordForm.classList.remove('invalid');
     els.inputHint.classList.remove('invalid');
+    renderDraftGuide();
   });
+  els.wordInput.addEventListener('compositionend', renderDraftGuide);
   els.hint.addEventListener('click', () => {
     if (app.socket?.readyState !== WebSocket.OPEN || app.awaitingState || !wordEntry.requestHint()) return;
     els.wordInput.focus({preventScroll: true});
@@ -1011,16 +1065,23 @@
   async function toggleSound() {
     app.sound = !app.sound; localStorage.setItem('segulja-sound', app.sound ? 'on' : 'off');
     updateSoundButton();
-    if (app.sound) {
-      const ctx = ensureAudio(); if (ctx) await ctx.resume().catch(() => {});
-      setMusicState(app.room); tone('word'); toast('BGM ON · 시간이 줄수록 박자가 빨라져요');
-    } else if (audioEngine.ctx) {
-      audioEngine.master.gain.setTargetAtTime(.0001, audioEngine.ctx.currentTime, .04);
-      setTimeout(() => { if (!app.sound) audioEngine.ctx?.suspend().catch(() => {}); }, 260);
-    }
+    ensureAudio(); setMusicState(app.room);
+    toast(app.sound ? 'BGM ON · 시간이 줄수록 박자가 빨라져요' : 'BGM OFF · 효과음은 설정에서 따로 조절해요');
   }
   els.sound.addEventListener('click', toggleSound);
   $('#menuSound').addEventListener('click', toggleSound);
+  $('#menuSfx').addEventListener('click', () => {
+    app.effectsSound = !app.effectsSound;
+    localStorage.setItem('segulja-sfx', app.effectsSound ? 'on' : 'off');
+    ensureAudio(); updateSoundButton(); if (app.effectsSound) tone('word');
+  });
+  for (const [key, storageKey] of [['musicVolume', 'segulja-music-volume'], ['effectsVolume', 'segulja-effects-volume']]) {
+    $(`#${key}`).addEventListener('input', event => {
+      app[key] = KungQuality.volume(event.target.value);
+      localStorage.setItem(storageKey, String(app[key]));
+      ensureAudio(); updateSoundButton();
+    });
+  }
 
   function updatePlayPreferences() {
     $('#menuHaptics').setAttribute('aria-checked', String(app.haptics));
@@ -1143,7 +1204,7 @@
   });
   const unlockAudio = event => {
     const togglingSound = event.target instanceof Element && event.target.closest('#soundButton');
-    if (app.sound && !togglingSound) { ensureAudio(); setMusicState(app.room); }
+    if (audioMix().audible && !togglingSound) { ensureAudio(); setMusicState(app.room); }
   };
   window.addEventListener('pointerdown', unlockAudio, {once: true, capture: true});
   window.addEventListener('keydown', unlockAudio, {once: true, capture: true});
@@ -1151,7 +1212,7 @@
     if (!document.hidden) { transport.check(); if (!app.room) loadLobby(); }
     if (!audioEngine.ctx) return;
     if (document.hidden) audioEngine.ctx.suspend().catch(() => {});
-    else if (app.sound) audioEngine.ctx.resume().then(() => { audioEngine.nextStepAt = audioEngine.ctx.currentTime + .05; }).catch(() => {});
+    else if (audioMix().audible) audioEngine.ctx.resume().then(() => { audioEngine.nextStepAt = audioEngine.ctx.currentTime + .05; }).catch(updateAudioStatus);
   });
 
   $('#crewGrid').addEventListener('click', event => {

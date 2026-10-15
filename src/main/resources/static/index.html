@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/orbit-redesign.css?v=20261012-04">
   <link rel="stylesheet" href="/stitch-ui.css?v=20261013-04">
   <link rel="stylesheet" href="/mobile-ui.css?v=20261013-02">
-  <link rel="stylesheet" href="/release-ui.css?v=20261014-02">
+  <link rel="stylesheet" href="/release-ui.css?v=20261015-02">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -255,12 +255,13 @@
           <div class="word-entry">
             <form id="wordForm" class="word-form" autocomplete="off">
               <label class="sr-only" for="wordInput">이어질 단어</label>
-              <input id="wordInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send" aria-describedby="inputHint" maxlength="4" placeholder="단어를 입력하세요" disabled>
+              <input id="wordInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send" aria-describedby="inputHint draftGuide" maxlength="4" placeholder="단어를 입력하세요" disabled>
               <button class="button button-kung" type="submit" aria-keyshortcuts="Enter" aria-label="단어 쿵, Enter 키로 제출" disabled><span id="submitLabel">쿵!</span><span class="submit-label-short" aria-hidden="true">쿵!</span><kbd aria-hidden="true">↵</kbd></button>
             </form>
             <button class="hint-button" id="hintButton" type="button" disabled><b>힌트</b><span id="hintCount">3</span></button>
           </div>
           <p class="input-hint" id="inputHint">내 차례가 오면 바로 입력할 수 있어요</p>
+          <div id="draftGuide" class="draft-guide" hidden><span id="draftMessage">입력 후 쿵!</span><b id="draftCount">0 / 3글자</b></div>
           </div>
           <div class="reactions" aria-label="빠른 반응">
             <span>같이 반응하기</span>
@@ -283,6 +284,11 @@
             <section class="result-scoreboard" aria-labelledby="resultScoreTitle">
               <div><h3 id="resultScoreTitle">이번 항로 순위</h3><span>우승자 · 최종 점수</span></div>
               <ol id="resultRanking"></ol>
+            </section>
+            <section id="roundReport" class="round-report" aria-labelledby="roundReportTitle" hidden>
+              <h3 id="roundReportTitle">나의 플레이 리포트</h3>
+              <div class="round-metrics"><div><strong id="roundFastest">—</strong><span>가장 빠른 성공</span></div><div><strong id="roundStreak">0회</strong><span>내 최고 연속 성공</span></div><div><strong id="roundHints">0회</strong><span>사용한 힌트</span></div></div>
+              <p id="roundCoaching"></p><small>이번 판 서버 기록 · 힌트 성공 포함 · 턴 시작부터 판정까지</small>
             </section>
             <div class="result-actions"><button class="text-button result-history" id="resultHistoryButton" type="button">단어 기록</button><button class="text-button result-home" type="button" data-go-home>로비로 돌아가기</button></div>
           </section>
@@ -350,6 +356,10 @@
     <div id="menuRoom" class="menu-room" hidden><span>친구 초대 코드 <strong id="menuRoomCode">-----</strong></span><button id="menuShareButton" type="button">초대하기</button></div>
     <div class="play-preferences">
       <button id="menuSound" class="preference-row" type="button" role="switch" aria-checked="true" aria-label="배경음악"><span><strong>배경음악</strong><small>박자에 맞춰 더 신나는 대결</small></span><i aria-hidden="true"></i></button>
+      <label class="volume-control" for="musicVolume"><span>음악 볼륨 <output id="musicVolumeValue" for="musicVolume">70%</output></span><input id="musicVolume" type="range" min="0" max="100" step="5" value="70"></label>
+      <button id="menuSfx" class="preference-row" type="button" role="switch" aria-checked="true" aria-label="효과음"><span><strong>효과음</strong><small>음악을 꺼도 성공·실패 소리를 들을 수 있어요</small></span><i aria-hidden="true"></i></button>
+      <label class="volume-control" for="effectsVolume"><span>효과음 볼륨 <output id="effectsVolumeValue" for="effectsVolume">70%</output></span><input id="effectsVolume" type="range" min="0" max="100" step="5" value="70"></label>
+      <p id="audioStatus" class="audio-status" role="status">화면을 누르면 소리가 시작돼요.</p>
       <button id="menuHaptics" class="preference-row" type="button" role="switch" aria-checked="true" aria-label="진동 효과"><span><strong>진동 효과</strong><small>지원하는 기기에서 성공과 실패를 느껴요</small></span><i aria-hidden="true"></i></button>
       <button id="menuEffects" class="preference-row" type="button" role="switch" aria-checked="false" aria-label="가벼운 연출"><span><strong>가벼운 연출</strong><small>움직임과 입자 효과를 줄여 편하게</small></span><i aria-hidden="true"></i></button>
     </div>
@@ -371,6 +381,7 @@
   <script src="/game-client.js?v=20261014-01" defer></script>
   <script src="/practice.js?v=20261014-01" defer></script>
   <script src="/progression.js?v=20261014-02" defer></script>
-  <script src="/app.js?v=20261014-02" defer></script>
+  <script src="/play-quality.js?v=20261015-01" defer></script>
+  <script src="/app.js?v=20261015-02" defer></script>
 </body>
 </html>
