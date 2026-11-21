@@ -1,10 +1,10 @@
-FROM maven:3.9.11-eclipse-temurin-17-alpine AS build
+FROM docker.io/library/maven:3.9.11-eclipse-temurin-17-alpine AS build
 WORKDIR /workspace
 COPY pom.xml .
 COPY src ./src
 RUN mvn -B -ntp -DskipTests package
 
-FROM eclipse-temurin:17-jre-alpine
+FROM docker.io/library/eclipse-temurin:17-jre-alpine
 RUN addgroup -S game && adduser -S game -G game
 WORKDIR /app
 COPY --from=build /workspace/target/three-letter-boom-0.0.1-SNAPSHOT.jar app.jar

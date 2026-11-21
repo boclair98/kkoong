@@ -179,6 +179,8 @@ Node 22에서 입력·연결·캐릭터·성장·연습 회귀 테스트를 실�
 
 `coders.yaml`은 단일 Spring 서비스를 `mode: native`로 공개하며 WebSocket timeout을 최댓값으로 설정합니다. Docker 빌드 단계에서 Maven 패키징을 끝내므로 콜드 스타트 때 설치나 마이그레이션을 실행하지 않습니다.
 
+베이스 이미지는 `docker.io/library/maven:3.9.11-eclipse-temurin-17-alpine`과 `docker.io/library/eclipse-temurin:17-jre-alpine`처럼 레지스트리까지 명시합니다. 기본 검색 레지스트리가 없는 Coders 빌더에서도 같은 Java 17 이미지를 해석하도록 하기 위한 설정입니다.
+
 ```sh
 docker build -t three-letter-boom .
 docker run --rm -p 8080:8080 three-letter-boom
