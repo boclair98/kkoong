@@ -66,6 +66,7 @@ public class RoomService {
                 case "removeBot" -> withPlayer(session, (room, player) -> removeBot(room, player, text(message, "botId")));
                 case "setDifficulty" -> withPlayer(session, (room, player) -> setDifficulty(room, player, text(message, "difficulty")));
                 case "rematch" -> withPlayer(session, (room, player) -> rematch(room, player));
+                case "returnToLobby" -> withPlayer(session, (room, player) -> returnToLobby(room, player));
                 case "leave" -> leave(session, true);
                 case "ping" -> send(session, Map.of("type", "pong", "serverTime", System.currentTimeMillis()));
                 default -> throw new GameProblem("UNKNOWN_MESSAGE", "알 수 없는 요청이에요");
@@ -282,17 +283,23 @@ public class RoomService {
         room.requiredSyllable = dictionary.pickStarter(room.mode);
         room.turnIndex = 0;
         room.players.values().forEach(player -> {
-            player.score = 0;
-            player.lives = room.mode.lives();
-            player.streak = 0;
-            player.hintsRemaining = HINTS_PER_ROUND;
-            player.wordsPlayed = 0;
-            player.bestStreak = 0;
-            player.fastestWordMillis = 0;
+            resetPlayerRound(room, player);
             player.eliminated = !player.bot && !player.connected;
         });
         room.eventText = "첫 글자는 ‘" + room.requiredSyllable + "’ — 리듬 시작!";
         startTurn(room);
+    }
+
+    private void resetPlayerRound(GameRoom room, GameRoom.Player player) {
+        player.score = 0;
+        player.lives = room.mode.lives();
+        player.streak = 0;
+        player.hintsRemaining = HINTS_PER_ROUND;
+        player.wordsPlayed = 0;
+        player.bestStreak = 0;
+        player.fastestWordMillis = 0;
+        player.eliminated = false;
+        player.hintSnapshot = null;
     }
 
     private void submitWord(GameRoom room, GameRoom.Player player, String rawWord) {
@@ -347,15 +354,29 @@ public class RoomService {
             requirePlaying(room);
             if (currentPlayer(room) != player) throw new GameProblem("NOT_YOUR_TURN", "지금은 다른 사람 차례예요");
             requireTimeRemaining(room, player);
+            GameRoom.HintSnapshot previous = player.hintSnapshot;
+            if (previous != null && previous.roundId().equals(room.roundId) && previous.turnCount() == room.turnCount) {
+                sendHint(player, previous, false, 0);
+                return;
+            }
             if (player.hintsRemaining <= 0) throw new GameProblem("NO_HINTS", "이번 궤도의 힌트를 모두 사용했어요");
             String word = dictionary.pick(room.requiredSyllable, room.mode, room.usedWords);
             if (word == null) throw new GameProblem("HINT_UNAVAILABLE", "이 글자로 이어갈 힌트를 찾지 못했어요");
             player.hintsRemaining--;
-            player.score = Math.max(0, player.score - HINT_COST);
-            room.eventText = player.nickname + "님이 탐색 힌트를 사용했어요 · -" + HINT_COST + "점";
+            int deductedPoints = Math.min(player.score, HINT_COST);
+            player.score -= deductedPoints;
+            player.hintSnapshot = new GameRoom.HintSnapshot(room.roundId, room.round, room.turnCount, word, player.hintsRemaining);
+            room.eventText = player.nickname + "님이 탐색 힌트를 사용했어요"
+                    + (deductedPoints > 0 ? " · -" + deductedPoints + "점" : "");
             broadcastState(room);
-            send(player.session, Map.of("type", "hint", "word", word, "remaining", player.hintsRemaining, "cost", HINT_COST));
+            sendHint(player, player.hintSnapshot, true, deductedPoints);
         }
+    }
+
+    private void sendHint(GameRoom.Player player, GameRoom.HintSnapshot hint, boolean charged, int deductedPoints) {
+        send(player.session, Map.of("type", "hint", "word", hint.word(), "remaining", hint.remaining(), "cost", HINT_COST,
+                "roundId", hint.roundId(), "round", hint.round(), "turnCount", hint.turnCount(), "charged", charged,
+                "deductedPoints", deductedPoints));
     }
 
     private void addBot(GameRoom room, GameRoom.Player requester) {
@@ -421,6 +442,32 @@ public class RoomService {
                 throw new GameProblem("NEED_PLAYERS", "친구가 복귀한 뒤 다시 시작해 주세요");
             }
             resetRound(room);
+            broadcastState(room);
+        }
+    }
+
+    private void returnToLobby(GameRoom room, GameRoom.Player requester) {
+        synchronized (room) {
+            if (room.duelQueue) throw new GameProblem("DUEL_AUTO", "1:1 대전은 결과에서 한 판 더를 눌러 주세요");
+            requireHost(room, requester);
+            if (room.phase != GameRoom.Phase.FINISHED) throw new GameProblem("NOT_FINISHED", "현재 판이 끝난 뒤 대기실로 돌아갈 수 있어요");
+            cleanDisconnected(room, System.currentTimeMillis());
+            room.phase = GameRoom.Phase.WAITING;
+            room.usedWords.clear();
+            room.history.clear();
+            room.combo = 0;
+            room.roundId = "";
+            room.turnIndex = 0;
+            room.turnCount = 0;
+            room.turnStartedAt = 0;
+            room.deadline = 0;
+            room.botActionAt = 0;
+            room.requiredSyllable = null;
+            room.lastWord = null;
+            room.winnerId = null;
+            room.players.values().forEach(player -> resetPlayerRound(room, player));
+            room.eventText = "대기실로 돌아왔어요. 친구를 초대하거나 다음 판을 준비해 주세요";
+            room.updatedAt = System.currentTimeMillis();
             broadcastState(room);
         }
     }

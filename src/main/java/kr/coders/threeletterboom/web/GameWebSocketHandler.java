@@ -1,10 +1,12 @@
 package kr.coders.threeletterboom.web;
 
+import jakarta.websocket.Session;
 import kr.coders.threeletterboom.game.RoomService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.adapter.NativeWebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
@@ -14,6 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class GameWebSocketHandler extends TextWebSocketHandler {
     private static final int MAX_MESSAGE_BYTES = 4_096;
+    private static final String BLOCKING_SEND_TIMEOUT = "org.apache.tomcat.websocket.BLOCKING_SEND_TIMEOUT";
+    private static final long BLOCKING_SEND_TIMEOUT_MS = 1_500L;
     private final RoomService rooms;
     private final Map<String, MessageBudget> connections = new ConcurrentHashMap<>();
 
@@ -29,6 +33,13 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
         connections.put(session.getId(), new MessageBudget());
         session.setTextMessageSizeLimit(MAX_MESSAGE_BYTES);
+        if (session instanceof NativeWebSocketSession nativeSession) {
+            Session jakartaSession = nativeSession.getNativeSession(Session.class);
+            if (jakartaSession != null) {
+                // Bound Tomcat's blocking transport write; room broadcasts are still synchronous.
+                jakartaSession.getUserProperties().put(BLOCKING_SEND_TIMEOUT, BLOCKING_SEND_TIMEOUT_MS);
+            }
+        }
     }
 
     @Override

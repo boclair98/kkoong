@@ -74,6 +74,7 @@ final class GameRoom {
         int wordsPlayed;
         int bestStreak;
         long fastestWordMillis;
+        HintSnapshot hintSnapshot;
         final String resumeToken = UUID.randomUUID().toString();
         boolean protectedResume;
         long disconnectedAt;
@@ -91,4 +92,5 @@ final class GameRoom {
     }
 
     record WordPlay(String playerId, String nickname, String word, int points, long at) { }
+    record HintSnapshot(String roundId, int round, int turnCount, String word, int remaining) { }
 }

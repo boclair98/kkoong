@@ -22,6 +22,7 @@
     waitingStage: $('#waitingStage'), waitingMascot: $('#waitingMascot'), waitingSeatCount: $('#waitingSeatCount'), waitingCopyText: $('#waitingCopyText'),
     resultRank: $('#resultRank'), resultWords: $('#resultWords'), resultPlayers: $('#resultPlayers'), resultRanking: $('#resultRanking'),
     roomCode: $('#roomCode'), roomCodeButton: $('#roomCodeButton'), start: $('#startButton'), rematch: $('#rematchButton'),
+    returnToLobby: $('#returnToLobbyButton'), nextRoundButtons: $('#nextRoundButtons'), nextRoundStatus: $('#nextRoundStatus'),
     addBot: $('#addBotButton'), waitingCopy: $('#waitingCopy'), controls: $('#gameControls'), lengthRule: $('#lengthRule'),
     history: $('#wordHistory'), historyCount: $('#historyCount'), feverBanner: $('#feverBanner'), arena: $('.arena'), mobileRoomCode: $('#mobileRoomCode'),
     reactionLayer: $('#reactionLayer'), impactLayer: $('#impactLayer'), combatantStage: $('#combatantStage'), activeMascot: $('#activeMascot'),
@@ -64,7 +65,8 @@
     mascot: Number.isInteger(savedMascot) && savedMascot >= 0 && savedMascot < crewCatalog.length ? savedMascot : 0,
     crewFilter: 'all', crewPage: 0, crewNotice: '',
     lastPhase: null, lastPlayAt: 0, previousLives: new Map(), impactQueue: [], impactBusy: false, impactSerial: 0,
-    feedbackTimers: new Set(), lastFever: false, lastTurn: null
+    feedbackTimers: new Set(), lastFever: false, lastTurn: null,
+    turnHint: null, hintTimer: null, nextRoundAction: null, nextRoundTimer: null
   };
   const wordEntry = new KungInput.WordInput(els.wordInput, {now: () => Date.now() + app.serverOffset});
   const audioEngine = {
@@ -107,7 +109,9 @@
         setEntryPending(false);
         toast('입장 중 연결이 끊겼어요. 다시 눌러 입장해 주세요');
       }
+      clearTimeout(app.hintTimer);
       wordEntry.reset(); syncInputControls();
+      clearNextRoundAction();
       if (app.desiredRoom && navigator.onLine) {
         const delay = Math.min(7000, 700 * 2 ** app.reconnectAttempt++);
         app.reconnectTimer = setTimeout(() => { if (app.desiredRoom) connect().catch(() => {}); }, delay);
@@ -153,6 +157,8 @@
       els.toast.classList.remove('show');
       app.serverOffset = message.serverTime - Date.now();
       app.room = message;
+      if (!matchesCurrentTurn(app.turnHint, message)) app.turnHint = null;
+      if (message.phase !== 'finished') clearNextRoundAction();
       renderGame(message);
       if (app.crewNotice) { toast(app.crewNotice); app.crewNotice = ''; }
       return;
@@ -163,16 +169,28 @@
       return;
     }
     if (message.type === 'hint') {
-      if (!wordEntry.receiveHint(message.word)) return;
+      // Older servers omitted these fields. Current servers identify the exact turn.
+      if (message.roundId != null && !matchesCurrentTurn(message, app.room)) return;
+      if (message.roundId != null) app.turnHint = message;
+      // A late response can enable a free retry without overwriting the player's draft.
+      if (!wordEntry.receiveHint(message.word)) {
+        syncInputControls();
+        return;
+      }
+      clearTimeout(app.hintTimer);
       syncInputControls();
       els.inputHint.classList.remove('invalid');
-      els.inputHint.textContent = `힌트가 입력됐어요 · ${message.remaining}개 남음 · ${message.cost}점 차감`;
-      toast(`힌트: ${message.word} · ${message.cost}점`);
+      const detail = hintFeedback(message);
+      els.inputHint.textContent = detail;
+      $('#hintStatus').textContent = `${message.word}. ${detail}`;
       tone('hint');
       return;
     }
     if (message.type === 'error') {
       setEntryPending(false);
+      if (app.nextRoundAction && ['HOST_ONLY', 'NOT_FINISHED', 'DUEL_AUTO', 'NEED_PLAYERS', 'IN_PROGRESS'].includes(message.code)) {
+        clearNextRoundAction(message.message);
+      }
       wordEntry.reject(); syncInputControls();
       toast(message.message);
       tone('error');
@@ -208,6 +226,9 @@
       try { app.socket.send(JSON.stringify({type: 'leave'})); } catch { /* close also leaves the room */ }
     }
     app.desiredRoom = null; app.room = null; app.lastPhase = null; app.lastPlayAt = 0; app.lastTurn = null; app.lastFever = false; app.crewNotice = '';
+    app.turnHint = null;
+    clearTimeout(app.hintTimer);
+    clearNextRoundAction();
     app.resumeToken = ''; sessionStore.removeItem('segulja-room-session'); setEntryPending(false);
     app.previousLives.clear(); resetFeedback(); els.result.hidden = true;
     wordEntry.update(null, app.playerId); els.wordForm.classList.remove('invalid'); updateInputViewport();
@@ -225,8 +246,12 @@
     els.waitingStage.hidden = room.phase !== 'waiting';
     $('#roomVisibility').textContent = room.inviteOnly ? '초대 전용 · 코드를 아는 사람만' : '공개 방 · 누구나 함께';
     $('#roomVisibility').dataset.visibility = room.inviteOnly ? 'invite' : 'public';
-    els.waitingSeatCount.textContent = `${room.players.length} / 8`;
-    els.waitingCopyText.textContent = room.players.length > 1
+    const capacity = room.maxPlayers || 8;
+    els.waitingSeatCount.textContent = `${room.players.length} / ${capacity}`;
+    $('#waitingTitle').textContent = room.round ? `${room.round + 1}번째 판을 준비해요` : '크루를 기다리고 있어요';
+    els.waitingCopyText.textContent = room.round
+      ? '방 코드와 초대 범위가 유지돼요. 친구를 더 초대하거나 쿵봇을 조절한 다음 시작해요.'
+      : room.players.length > 1
       ? `${room.players.length}명의 크루가 탑승했어요. 모두 준비되면 방장이 출발 버튼을 눌러요.`
       : '친구에게 방 코드를 보내거나 쿵봇을 불러 바로 출발할 수 있어요.';
     wordEntry.update(room, app.playerId);
@@ -236,9 +261,10 @@
     els.gameMode.textContent = modeLabels[room.mode.id] || room.mode.label;
     const currentSeconds = room.mode.currentTurnSeconds || room.mode.turnSeconds;
     els.gameRule.textContent = `${room.mode.length} · ${currentSeconds}초${room.mode.tempoStage ? ` · 속도 ${room.mode.tempoStage + 1}` : ''}`;
-    els.round.textContent = String(room.round || 1).padStart(2, '0');
+    const visibleRound = room.phase === 'waiting' ? (room.round || 0) + 1 : room.round || 1;
+    els.round.textContent = String(visibleRound).padStart(2, '0');
     els.lengthRule.textContent = room.mode.length === '3글자' ? '반드시 세 글자' : `${room.mode.length} 단어`;
-    els.playerCount.textContent = `${room.players.length} / 8`;
+    els.playerCount.textContent = `${room.players.length} / ${capacity}`;
     const requiredSyllable = room.requiredSyllable || '쿵';
     const particle = particleForStart(requiredSyllable);
     els.required.textContent = requiredSyllable;
@@ -265,8 +291,6 @@
     renderResult(room, me);
     els.turnLabel.textContent = room.phase === 'waiting' ? '모두 준비되면 출발!' : room.phase === 'finished'
       ? `🏆 ${room.players.find(player => player.id === room.winnerId)?.nickname || '누군가'} 승리!` : myTurn ? '내 차례! 빠르게 이어주세요' : `${current?.nickname || '다음 플레이어'}님 차례`;
-    const hints = me?.hints ?? 0;
-    els.hintCount.textContent = hints;
     syncInputControls();
     els.wordInput.maxLength = room.mode.id === 'relay' ? 4 : 3;
     els.wordInput.placeholder = mobileQuery.matches ? (myTurn ? '단어 입력' : '상대 차례') : myTurn ? `‘${requiredSyllable}’${particle} 시작하는 사전 명사` : '상대 차례 · 다음 글자를 기다려요';
@@ -276,24 +300,26 @@
     els.wordForm.classList.remove('invalid');
     els.inputHint.classList.remove('invalid');
     const hintReady = myTurn && wordEntry.committedReplacement && els.wordInput.value === wordEntry.committedReplacement;
-    els.inputHint.textContent = hintReady ? '힌트 단어가 입력됐어요 · 쿵!을 눌러 제출하세요' : myTurn ? `${room.mode.length} · 사전에 등록된 명사만 성공` : room.phase === 'playing' ? (mobileQuery.matches ? '상대 차례 · 다음 차례에 입력이 비워져요' : '상대 차례 · 키보드는 유지되고 다음 차례에 입력이 초기화돼요') : '시작 후 입력창을 눌러 단어를 입력하세요';
+    els.inputHint.textContent = hintReady
+      ? app.turnHint ? hintFeedback(app.turnHint) : '힌트 단어가 입력됐어요 · 쿵!을 눌러 제출하세요'
+      : myTurn ? `${room.mode.length} · 사전에 등록된 명사만 성공` : room.phase === 'playing' ? (mobileQuery.matches ? '상대 차례 · 다음 차례에 입력이 비워져요' : '상대 차례 · 키보드는 유지되고 다음 차례에 입력이 초기화돼요') : '시작 후 입력창을 눌러 단어를 입력하세요';
     els.start.hidden = room.phase !== 'waiting' || !isHost;
-    els.rematch.hidden = room.phase !== 'finished' || !isHost;
     els.addBot.hidden = room.phase !== 'waiting' || !isHost || room.players.length >= 8;
     if (els.difficultyPicker) {
       els.difficultyPicker.hidden = room.phase !== 'waiting' || !isHost;
       $$('[data-difficulty]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.difficulty === room.difficulty?.id)));
     }
-    els.waitingCopy.hidden = room.phase === 'playing';
-    els.waitingCopy.textContent = room.phase === 'finished'
-      ? (isHost ? '같은 크루와 새 판을 시작해요. 이번 판 기록은 초기화돼요.' : '방장이 재경기를 시작하면 함께 출격해요.')
-      : (isHost ? '친구를 기다리거나 쿵봇을 불러 바로 시작하세요' : '방장이 시작하면 함께 출격해요.');
-    els.controls.hidden = room.phase === 'playing';
+    els.waitingCopy.textContent = isHost ? '친구를 기다리거나 쿵봇을 불러 바로 시작하세요' : '방장이 시작하면 함께 출격해요.';
+    els.controls.hidden = room.phase !== 'waiting';
     recordProgression(room);
     processMatchFeedback(room);
     if ($('#playMenu').open) renderPlayMenu();
     // No asynchronous autofocus: a dismissed mobile keyboard must stay dismissed.
     updateInputViewport();
+    if (app.lastPhase === 'finished' && room.phase !== 'finished') {
+      window.scrollTo({top: 0, behavior: 'instant'});
+      (room.phase === 'waiting' ? $('#waitingTitle') : els.arenaTitle).focus({preventScroll: true});
+    }
 
     app.lastPhase = room.phase;
     app.lastPlayAt = room.history?.at(-1)?.at || 0;
@@ -519,6 +545,7 @@
       return;
     }
     const {winner, ranking, myRank, myWords} = KungClient.summarizeResult(room, app.playerId);
+    renderNextRoundActions(room);
     const podium = $('#resultPodium');
     podium.replaceChildren(...ranking.slice(0, 3).map((player, index) => {
       const item = document.createElement('div');
@@ -564,6 +591,50 @@
     }));
     els.result.hidden = false;
     els.result.classList.toggle('mine', winner?.id === app.playerId && Boolean(me));
+  }
+
+  function renderNextRoundActions(room, notice) {
+    if (room?.phase !== 'finished') return;
+    const isHost = room.hostId === app.playerId;
+    const isDuel = room.matchType === 'duel';
+    const canRematch = room.players.filter(player => player.bot || player.connected).length >= 2;
+    els.nextRoundButtons.hidden = !isHost || (isDuel && !canRematch);
+    els.nextRoundButtons.classList.toggle('single', isDuel || !canRematch);
+    els.rematch.hidden = !canRematch;
+    els.returnToLobby.hidden = isDuel;
+    els.returnToLobby.classList.toggle('button-primary', !canRematch);
+    els.returnToLobby.classList.toggle('button-soft', canRematch);
+    const disabled = app.awaitingState || Boolean(app.nextRoundAction);
+    els.rematch.disabled = disabled;
+    els.returnToLobby.disabled = disabled;
+    const message = notice || (app.awaitingState ? '연결이 돌아오면 다음 판을 준비할 수 있어요.'
+      : app.nextRoundAction === 'returnToLobby' ? '같은 방의 대기실로 이동 중이에요.'
+      : app.nextRoundAction === 'rematch' ? '새 판을 시작하고 있어요.'
+      : !isHost ? '방장이 다음 판을 고르면 함께 이동해요.'
+      : !canRematch && isDuel ? '상대가 복귀하면 새 판을 시작할 수 있어요.'
+      : !canRematch ? '대기실에서 친구를 다시 부르거나 쿵봇과 시작할 수 있어요.'
+      : isDuel ? '같은 상대와 바로 새 판을 시작해요.'
+      : '같은 크루로 바로 시작하거나, 대기실에서 친구와 쿵봇을 더 부르세요.');
+    if (els.nextRoundStatus.textContent !== message) els.nextRoundStatus.textContent = message;
+  }
+
+  function clearNextRoundAction(notice) {
+    clearTimeout(app.nextRoundTimer);
+    app.nextRoundAction = null;
+    renderNextRoundActions(app.room, notice);
+  }
+
+  function chooseNextRound(type) {
+    if (app.room?.phase !== 'finished' || app.room.hostId !== app.playerId || app.awaitingState ||
+        app.nextRoundAction || app.socket?.readyState !== WebSocket.OPEN) return;
+    app.nextRoundAction = type;
+    renderNextRoundActions(app.room);
+    app.nextRoundTimer = setTimeout(() => clearNextRoundAction('응답이 늦어요. 연결을 확인하고 다시 눌러 주세요.'), 5000);
+    try {
+      app.socket.send(JSON.stringify({type}));
+    } catch {
+      clearNextRoundAction('요청을 보내지 못했어요. 다시 눌러 주세요.');
+    }
   }
 
   function processMatchFeedback(room) {
@@ -1073,12 +1144,30 @@
     renderCrewSelection();
     els.dialog.close(); launch(app.setupIntent, {mode: app.pendingMode, code: app.pendingCode});
   });
+  function matchesCurrentTurn(hint, room) {
+    return Boolean(hint && room?.phase === 'playing' && hint.roundId === room.roundId &&
+      hint.round === room.round && hint.turnCount === room.turnCount);
+  }
+
+  function hintFeedback(hint) {
+    if (hint.charged === false) return '같은 턴 힌트 다시 입력 · 추가 차감 없음';
+    const points = hint.deductedPoints ?? hint.cost;
+    const remaining = `힌트가 입력됐어요 · ${hint.remaining}개 남음`;
+    return points > 0 ? `${remaining} · ${points}점 차감` : remaining;
+  }
+
   function syncInputControls() {
     const connected = app.socket?.readyState === WebSocket.OPEN && !app.awaitingState;
     els.wordForm.querySelector('button').disabled = !connected || !wordEntry.canSubmit;
     els.wordForm.setAttribute('aria-busy', String(wordEntry.pending));
     const hints = app.room?.players.find(player => player.id === app.playerId)?.hints ?? 0;
-    els.hint.disabled = !connected || !wordEntry.canSubmit || Boolean(wordEntry.hintKey) || hints <= 0;
+    const usedThisTurn = Boolean(app.turnHint);
+    const waitingForHint = Boolean(wordEntry.hintKey);
+    els.hintCount.textContent = hints;
+    $('#hintLabel').textContent = usedThisTurn ? '재입력' : '힌트';
+    els.hint.setAttribute('aria-label', usedThisTurn ? `힌트 다시 입력, 추가 차감 없음, ${hints}개 남음` : `힌트 받기, ${hints}개 남음`);
+    els.hint.setAttribute('aria-busy', String(waitingForHint));
+    els.hint.disabled = !connected || !wordEntry.canSubmit || waitingForHint || (!usedThisTurn && hints <= 0);
     renderDraftGuide();
   }
 
@@ -1122,13 +1211,25 @@
   els.wordInput.addEventListener('compositionend', renderDraftGuide);
   els.hint.addEventListener('click', () => {
     if (app.socket?.readyState !== WebSocket.OPEN || app.awaitingState || !wordEntry.requestHint()) return;
-    els.wordInput.focus({preventScroll: true});
-    try { app.socket.send(JSON.stringify({type: 'hint', round: app.room.round, turnCount: app.room.turnCount})); }
-    catch { wordEntry.reject(); toast('힌트를 요청하지 못했어요. 다시 시도해 주세요'); }
+    clearTimeout(app.hintTimer);
+    const key = wordEntry.hintKey;
+    try {
+      app.socket.send(JSON.stringify({type: 'hint', round: app.room.round, turnCount: app.room.turnCount}));
+      app.hintTimer = setTimeout(() => {
+        if (wordEntry.hintKey !== key) return;
+        wordEntry.hintKey = null;
+        syncInputControls();
+        if (wordEntry.canSubmit) $('#hintStatus').textContent = '힌트 응답이 늦어요. 다시 요청할 수 있어요.';
+      }, 3500);
+    } catch {
+      wordEntry.reject();
+      toast('힌트를 요청하지 못했어요. 다시 시도해 주세요');
+    }
     syncInputControls();
   });
   els.start.addEventListener('click', () => send({type: 'start'}));
-  els.rematch.addEventListener('click', () => send({type: 'rematch'}));
+  els.rematch.addEventListener('click', () => chooseNextRound('rematch'));
+  els.returnToLobby.addEventListener('click', () => chooseNextRound('returnToLobby'));
   els.addBot.addEventListener('click', () => send({type: 'addBot'}));
   els.playerList.addEventListener('click', event => {
     const remove = event.target.closest('[data-remove-bot]');

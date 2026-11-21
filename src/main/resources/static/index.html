@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/stitch-ui.css?v=20261013-04">
   <link rel="stylesheet" href="/mobile-ui.css?v=20261013-02">
   <link rel="stylesheet" href="/release-ui.css?v=20261121-04">
-  <link rel="stylesheet" href="/match-upgrade.css?v=20261121-01">
+  <link rel="stylesheet" href="/match-upgrade.css?v=20261121-02">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -53,7 +53,7 @@
       <div class="hero-copy">
         <p class="eyebrow"><span>실시간 1–8인</span><span>사전 검증 매치</span></p>
         <h1 id="heroTitle"><span>세 글자로</span><em>우주를 쿵!</em></h1>
-        <p class="hero-description">마지막 음절을 이어 단어 궤도를 완성하세요.<br>가짜 단어는 통과 불가—순발력과 어휘력으로 승부합니다.</p>
+        <p class="hero-description">끝 글자로 단어를 이어 보세요. 마지막까지 남은 크루가 이겨요.</p>
         <div class="hero-buttons">
           <button class="button button-primary button-xl" id="quickButton" type="button" aria-label="빠른 매칭 시작"><span class="play-symbol" aria-hidden="true">▶</span><span class="desktop-cta" aria-hidden="true">빠른 매칭 시작</span><span class="mobile-cta" aria-hidden="true">빠른 매칭</span></button>
           <button class="button button-ghost button-xl" id="createButton" type="button">친구 방 만들기</button>
@@ -219,7 +219,7 @@
             <div class="waiting-orbit" aria-hidden="true"><span id="waitingMascot" class="mascot-sprite"></span><i></i></div>
             <span class="waiting-kicker">ORBIT STATION · READY CHECK</span>
             <span id="roomVisibility" class="room-visibility">공개 방 · 누구나 함께</span>
-            <h2 id="waitingTitle">크루를 기다리고 있어요</h2>
+            <h2 id="waitingTitle" tabindex="-1">크루를 기다리고 있어요</h2>
             <p id="waitingCopyText">친구에게 방 코드를 보내거나 쿵봇을 불러 바로 출발할 수 있어요.</p>
             <button id="waitingShareButton" class="waiting-invite" type="button" aria-label="방 코드와 초대 링크 공유">
               <span>친구 초대 코드</span><strong id="waitingRoomCode">-----</strong><small>눌러서 초대 링크 공유</small>
@@ -249,7 +249,7 @@
             </div>
             <div class="turn-copy">
               <p id="turnLabel">게임을 기다리는 중</p>
-              <h1 id="arenaTitle" aria-label="첫 글자 쿵으로 시작하는 단어를 입력하세요"><span id="requiredSyllable" class="syllable-orb">쿵</span><span class="turn-arrow" aria-hidden="true">→</span><i id="turnInstruction">으로 시작!</i></h1>
+              <h1 id="arenaTitle" tabindex="-1" aria-label="첫 글자 쿵으로 시작하는 단어를 입력하세요"><span id="requiredSyllable" class="syllable-orb">쿵</span><span class="turn-arrow" aria-hidden="true">→</span><i id="turnInstruction">으로 시작!</i></h1>
               <div class="last-word" id="lastWord">방장이 시작하면 첫 글자가 공개돼요</div>
             </div>
             <div class="combo-meter"><small>연속 성공</small><strong id="comboCount">0</strong><span>COMBO</span></div>
@@ -271,9 +271,10 @@
               <input id="wordInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send" aria-describedby="inputHint draftGuide" maxlength="4" placeholder="단어를 입력하세요" disabled>
               <button class="button button-kung" type="submit" aria-keyshortcuts="Enter" aria-label="단어 쿵, Enter 키로 제출" disabled><span id="submitLabel">쿵!</span><span class="submit-label-short" aria-hidden="true">쿵!</span><kbd aria-hidden="true">↵</kbd></button>
             </form>
-            <button class="hint-button" id="hintButton" type="button" disabled><b>힌트</b><span id="hintCount">3</span></button>
+            <button class="hint-button" id="hintButton" type="button" disabled><b id="hintLabel">힌트</b><span id="hintCount">3</span></button>
           </div>
           <p class="input-hint" id="inputHint">내 차례가 오면 바로 입력할 수 있어요</p>
+          <span id="hintStatus" class="sr-only" role="status"></span>
           <div id="draftGuide" class="draft-guide" hidden><span id="draftMessage">입력 후 쿵!</span><b id="draftCount">0 / 3글자</b></div>
           </div>
           <div class="reactions" aria-label="빠른 반응">
@@ -290,6 +291,14 @@
             <strong id="resultWinner">승자</strong>
             <p id="resultSummary">멋진 승부였습니다</p>
             <div id="resultPodium" class="result-podium" aria-hidden="true" hidden></div>
+            <section class="next-round" aria-labelledby="nextRoundTitle">
+              <h3 id="nextRoundTitle">다음 판</h3>
+              <p id="nextRoundStatus" role="status"></p>
+              <div class="next-round-buttons" id="nextRoundButtons" hidden>
+                <button class="button button-primary" id="rematchButton" type="button">한 판 더</button>
+                <button class="button button-soft" id="returnToLobbyButton" type="button">대기실에서 준비</button>
+              </div>
+            </section>
             <div class="result-stats" aria-label="이번 경기 기록">
               <div><strong id="resultRank">-</strong><span>내 순위</span></div>
               <div><strong id="resultWords">0</strong><span>내 유효 단어</span></div>
@@ -304,7 +313,7 @@
               <div class="round-metrics"><div><strong id="roundFastest">—</strong><span>가장 빠른 성공</span></div><div><strong id="roundStreak">0회</strong><span>내 최고 연속 성공</span></div><div><strong id="roundHints">0회</strong><span>사용한 힌트</span></div></div>
               <p id="roundCoaching"></p><small>이번 판 서버 기록 · 힌트 성공 포함 · 턴 시작부터 판정까지</small>
             </section>
-            <div class="result-actions"><button class="text-button result-history" id="resultHistoryButton" type="button">단어 기록</button><button class="text-button result-home" type="button" data-go-home>로비로 돌아가기</button></div>
+            <div class="result-actions"><button class="text-button result-history" id="resultHistoryButton" type="button">단어 기록</button><button class="text-button result-home" type="button" data-go-home>방 나가기</button></div>
           </section>
         </section>
 
@@ -318,7 +327,6 @@
       </div>
       <div class="game-controls" id="gameControls">
         <button class="button button-primary button-xl" id="startButton" type="button"><span class="play-symbol" aria-hidden="true">▶</span> 게임 시작!</button>
-        <button class="button button-primary button-xl" id="rematchButton" type="button" hidden>한 판 더!</button>
         <p id="waitingCopy">친구를 기다리거나 쿵봇을 불러 바로 시작하세요</p>
       </div>
     </section>
@@ -401,6 +409,6 @@
   <script src="/practice.js?v=20261014-01" defer></script>
   <script src="/progression.js?v=20261014-02" defer></script>
   <script src="/play-quality.js?v=20261015-01" defer></script>
-  <script src="/app.js?v=20261121-02" defer></script>
+  <script src="/app.js?v=20261121-03" defer></script>
 </body>
 </html>

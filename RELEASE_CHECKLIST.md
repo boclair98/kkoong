@@ -21,11 +21,13 @@
 - 설정에서 음악만 끄고 효과음 유지/반대 조합/볼륨 0/새로고침 저장 확인
 - 결과 개인 리포트는 실제 서버 값, 첫 성공 전 시간은 ‘—’, 재대결 시 초기화
 - 자신의 테스트 방 생성 → 친구 입장 → 시작 → 사전 거절/힌트/유효 단어 → 결과
+- 같은 턴 힌트 재요청은 같은 단어와 남은 횟수, 실제 추가 차감 0점을 반환
+- 결과에서 비방장 대기실 전환은 거절, 방장 전환 뒤 같은 코드로 새 입장·다음 판 시작
 - 같은 탭 새로고침 복귀(대기실/게임/결과), 일시 끊김 이후 점수·캐릭터·방장 유지
 - 다른 참가자의 공개 ID만으로 복귀할 수 없음, 예전 연결로 턴 조작 불가
 - 퇴장 확인 → 로비 → 자신의 테스트 방 정리, 재대결은 새 판 점수로 초기화
 - canonical main push → 실제 organization fork sync → 전체 SHA 일치 → Coders ready
-- 운영 `/actuator/health`, `/api/lobby`, `/api/word/check`와 최신 CSS/JS 버전 확인
+- 운영 `/actuator/health`와 `/actuator/health/readiness`, 최신 CSS/JS 확인 후 `node tools/release-smoke.cjs https://segulja-kkung.coders.kr/` 실행
 
 ## 정식 출시 전에 사람이 확인해야 할 게이트
 
@@ -46,8 +48,12 @@
 2. `/actuator/health` 실패, 방 입장 실패, WebSocket 끊김을 분리한다. `ready`만으로
    기능 정상이라고 판단하지 않는다.
 3. 방 데이터는 단일 프로세스 메모리에 있으므로 재시작·재배포 시 소실된다.
-   점검 전 플레이 중 사용자를 안내해야 하며 여러 인스턴스로 늘리기 전 공유 상태 설계가 필요하다.
+   Coders의 유휴 종료·Spot 회수·롤링 배포도 연결을 끊을 수 있다. 복제본을 늘리기 전에는
+   방의 소유권, 이어하기 상태, 타이머와 참가자 좌석을 함께 관리하는 공유 상태 설계가 필요하다.
+   점검 전 플레이 중인 사용자를 안내하고, 배포 후 새 방을 만들어 복구 여부를 확인한다.
 4. 장애 시 마지막 정상 커밋으로 복구하는 별도 forward commit 또는 검증된 플랫폼
    rollback을 사용한다. 임의 force push/저장소 삭제를 하지 않는다.
 5. 원인·발생 시간·수정 커밋·배포 ID·검증 결과를 기록하되 복귀 토큰, 인증 헤더,
    닉네임 외 사용자 개인정보는 로그/이슈에 남기지 않는다.
+
+참고 자료: [Coders WebSocket 런타임 계약](https://github.com/coders-kr/template-coders/blob/main/PLATFORM.md#5-websockets-sse--long-lived-connections--read-this), [Spring Boot 상태 확인](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Chrome의 모바일 키보드와 뷰포트 설명](https://developer.chrome.com/blog/viewport-resize-behavior).
