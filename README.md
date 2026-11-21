@@ -5,6 +5,11 @@
 ## 플레이 기능
 
 - 회원가입 없이 게스트로 빠른 시작, 방 생성, 5자리 코드/링크 초대
+- 친구 초대 방과 공개 방 분리: 친구 초대 방은 공개 목록·빠른 매칭에서 제외되고, 코드를 아는 사람은 입장할 수 있습니다. 비밀번호로 보호되는 방은 아닙니다.
+- 공개 방 모드 필터(전체/클래식/번개/릴레이), 실제 사람·봇·남은 자리·봇 난이도 표시. 연결된 사람이 없는 방은 자동매칭에서 제외합니다.
+- 방 목록 자동 갱신 중 키보드 포커스 유지, 필터 변경 때 오래된 응답 무시, 실패 시 오래된 입장 버튼 제거와 재시도 안내
+- 초기 입장 응답 12초 제한 및 연결 종료 시 버튼 잠금 해제. 재시도 가능하며 진행 중 재접속 규칙은 기존대로 유지합니다.
+- 대전의 최근 4개 단어 궤도 리본, 결과의 실제 상위 최대 3명 캐릭터 시상대(없는 참가자·점수를 만들지 않음)
 - 앱인토스 전용 `duelQueue` 1:1 자동매칭: 같은 모드의 사람 둘이 모이면 자동 시작하며 공개 방 목록에서는 제외
 - 앱인토스 공개 방 목록에 사용할 `/api/lobby` 읽기 API는 별도 WebView 출처에서도 접근 가능
 - 최대 8명, 혼자 시작하면 자동으로 합류하는 `쿵봇`
@@ -122,6 +127,10 @@ macOS/Linux:
 
 브라우저에서 `http://localhost:8080`을 엽니다. 상태 확인은 `/actuator/health`, 로비 상태는 `/api/lobby`입니다.
 
+공개 방 조회는 `/api/lobby?mode=all|classic|speed|relay`를 지원하며, 필터를 적용한 후 최대 12개를 반환합니다. 알 수 없는 모드 값은 빈 목록입니다. WebSocket `create`의 `inviteOnly`는 선택적 boolean으로, 생략하면 기존 앱인토스 클라이언트와 동일하게 공개 방을 만듭니다. 방 상태에는 `inviteOnly`가 포함됩니다. 공개 목록의 `players`는 재접속 대기 인원을 포함한 사람 수, `connectedPlayers`는 현재 연결된 사람 수이며 `availableSeats`는 봇·재접속 예약을 포함한 점유 좌석을 제외한 수입니다.
+
+2026-11-21 개정: Google Stitch 기존 6개 시안과 추가한 모바일 로비/대기실 시안을 참고했습니다. 실제 구현 범위·색상·접근성·시안에서 제외한 가상 기능은 [design.md](design.md)에 기록합니다. 모바일 입력은 한 개의 입력 노드를 유지하고 타이머·캐릭터를 확대했습니다. 태블릿의 시작 버튼은 세로 정렬하여 한국어가 한 글자씩 줄바꿈되지 않게 했습니다.
+
 입력 회귀 테스트(Node.js 내장 테스트 러너, 추가 패키지 불필요):
 
 ```sh
@@ -204,6 +213,8 @@ src/main/java/.../web/        REST, WebSocket, 정적 홈 컨트롤러
 src/main/resources/static/    의존성 없는 게임 UI, CSS, 캐릭터 자산
 src/main/resources/static/orbit-redesign.css  반응형 게임 레이아웃과 모바일 키보드 대응
 src/main/resources/static/stitch-ui.css       Cosmic Orbit Arcade 디자인 토큰과 6개 화면 스타일
+src/main/resources/static/release-ui.css      초대 범위, 방 탐색, 모바일 입력과 접근성 보완
+src/main/resources/static/match-upgrade.css   실제 단어 궤도와 결과 시상대
 src/main/resources/static/progression.js  로그인 전 로컬 성장·임무 규칙
 src/main/resources/static/progression.css 패스포트·임무·배지 UI
 src/main/resources/words-ko.txt  검증된 한국어 명사 데이터
@@ -241,6 +252,8 @@ tools/                        브라우저 스모크와 사전·자산 도구
 - 검수된 별명 선택과 목록 밖 별명의 서버 거절 확인
 - 키보드 포커스, 라벨, 터치 영역, 콘솔 오류와 실패 요청 확인
 - `/actuator/health`가 `UP`이고 production URL이 HTTP 200인지 확인
+
+2026-11-21 로컬 검증: Java 17 `mvnw.cmd -B -ntp verify` 40개, Node 회귀 46개 통과. HTTP/WebSocket 스모크는 초대방 비노출·코드 입장·보호된 복귀·공개방 모드/좌석·사전/점수·테스트 방 정리까지 확인합니다. 브라우저에서 모바일 설정/대기/대전/결과, 390×430의 작은 입력 영역, 태블릿·데스크톱 로비와 가로 넘침을 점검했습니다. 이는 실제 iOS/Android 키보드·스피커 테스트와 구분됩니다.
 
 실제 제출·결제·후원·공식 서비스 연동은 제공하지 않습니다. 게임 내 단어 판정과
 점수는 서버가 검증하며, 외부 사전 API 응답을 만들어내지 않습니다.

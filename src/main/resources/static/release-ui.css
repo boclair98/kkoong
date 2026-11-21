@@ -52,12 +52,81 @@
 .round-report p { margin: 12px 0 6px; color: #e1edf4; font-size: 13px; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
 .round-report small { display: block; color: #9db6c6; font-size: 11px; line-height: 1.5; word-break: keep-all; }
 .result-history { display: inline-flex; align-items: center; min-height: 44px; }
+.rooms-section { order: 4; }
+.crew-section { order: 5; }
+.dictionary-strip { order: 6; }
+.passport-section { order: 7; }
+.room-discovery { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.room-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.room-filters button { min-height: 44px; padding: 8px 17px; border: 1px solid #7086a34d; border-radius: 12px; color: #c4d0e4; background: #111b2c; font: 650 14px/1.5 var(--font-ui); cursor: pointer; }
+.room-filters button[aria-pressed="true"] { border-color: #85e8dc; color: #b0f9e9; background: #153b40; }
+.room-filters button:focus-visible { outline: 2px solid #83eee4; outline-offset: 3px; }
+.room-discovery-note { margin: 12px 0 20px; color: #a8b4c8; font-size: 13px; line-height: 1.6; word-break: keep-all; }
+.room-card { padding: 20px; text-align: left; }
+.room-card > div:first-child { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.room-card > div:first-child strong { font: 750 20px/1.4 var(--font-mono); letter-spacing: .08em; }
+.room-card > div:first-child b { font-size: 12px; }
+.room-card p { margin: 14px 0; color: #c0cce0; font-size: 13px; line-height: 1.6; }
+.room-card-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid #7c9db333; color: #a7f5df; font-size: 13px; line-height: 1.5; }
+.room-card-bottom > span:last-child { color: #dcebf8; font-weight: 700; }
+.empty-room { padding: 28px 20px; }
+.empty-room strong { color: #e7f4ff; font-size: 17px; line-height: 1.5; }
+.empty-room p { max-width: 430px; margin: 8px auto 0; color: #b4c3d9; font-size: 14px; line-height: 1.7; word-break: keep-all; }
+.room-list-status { padding: 18px; border: 1px solid #deb37b55; border-radius: 14px; color: #ffdbaf; background: #33291e; font-size: 14px; line-height: 1.6; }
+.room-visibility { padding: 6px 12px; border: 1px solid #82ded34d; border-radius: 999px; color: #a4efe0; background: #123239; font-size: 12px; line-height: 1.5; }
+.room-visibility[data-visibility="invite"] { color: #ffdb9d; border-color: #ddb36b55; background: #352b22; }
+.setup-dialog .visibility-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.setup-dialog .visibility-choices label { min-width: 0; }
+.setup-dialog .visibility-choices label span { display: grid; align-content: center; justify-content: center; min-height: 78px; padding: 12px 8px; }
+.setup-dialog fieldset input:focus-visible + span { outline: 2px solid #83eee4; outline-offset: 3px; }
+.setup-dialog .visibility-choices b { font-size: 15px; line-height: 1.4; }
+.setup-dialog .visibility-choices small { font-size: 12px; line-height: 1.5; word-break: keep-all; }
+.setup-dialog fieldset[hidden] { display: none; }
+.setup-context { margin: 10px 0 18px; color: #bdcfe2; font-size: 13px; line-height: 1.7; word-break: keep-all; }
+.hero-buttons .button { word-break: keep-all; }
+@media (min-width: 761px) and (max-width: 1040px) {
+  .hero-buttons { flex-direction: column; align-items: stretch; }
+  .hero-buttons > .button { width: 100%; min-width: 0; white-space: nowrap; }
+}
+.rooms-section .section-heading h2 { font-size: clamp(24px, 2.2vw, 31px); }
 .game-screen[data-phase="finished"] .game-shell { min-height: 0; }
 .game-screen[data-phase="finished"] .arena { min-height: 0; padding: 0; }
 .game-screen[data-phase="finished"] .result-overlay { position: relative; inset: auto; overflow: hidden; align-content: start; }
 .game-screen[data-phase="finished"] .game-controls { position: static; transform: none; width: min(100%, 440px); margin: 14px auto 20px; }
 .game-screen[data-phase="finished"] .result-actions { display: flex; grid-column: 1 / -1; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
 @media (max-width: 760px) {
+  .hero-description { max-width: 34em; }
+  .hero-stage { display: grid; grid-template-columns: 92px minmax(0, 1fr); grid-template-rows: 24px 42px 42px; align-items: center; gap: 4px 12px; flex-basis: 140px; min-height: 140px; padding: 8px 18px 16px; }
+  .hero-stage .coord-a { position: static; grid-column: 1 / -1; grid-row: 1; justify-self: end; padding: 0; border: 0; background: none; }
+  .hero-stage .hero-mascot { position: static; grid-column: 1; grid-row: 2 / 4; width: 92px; height: 92px; max-width: none; transform: none; animation: none; }
+  .hero-stage .demo-card { position: static; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: auto; padding: 0; border: 0; background: none; box-shadow: none; transform: none; }
+  .hero-stage .demo-card small { font-size: 11px; color: #becbdf; white-space: nowrap; }
+  .hero-stage .demo-card strong { margin: 0; font-size: 23px; white-space: nowrap; }
+  .hero-stage .demo-card span { display: none; }
+  .hero-stage .demo-left { grid-column: 2; grid-row: 2; }
+  .hero-stage .demo-right { grid-column: 2; grid-row: 3; color: #a4f3e6; }
+  .hero-stage :is(.orbit, .demo-kung, .coord-b, .float-tag) { display: none; }
+  .mobile-crew-preview { min-height: 54px; margin-top: 12px; padding-block: 6px; }
+  .room-discovery { align-items: stretch; }
+  .room-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+  .room-filters button { padding: 8px 6px; font-size: 13px; }
+  #publicRoomButton { width: 100%; min-height: 48px; font-size: 14px; }
+  .room-list { grid-template-columns: minmax(0, 1fr); }
+  .room-card { padding: 18px; }
+  .game-input-active .beat-zone { grid-template-columns: 76px minmax(0, 1fr) 34px; gap: 6px; }
+  .game-input-active .combatant-stage { min-height: 132px; }
+  .game-input-active .mascot-frame { width: 60px; }
+  .game-input-active .combatant-stage .timer-ring { width: 58px; height: 58px; }
+  .game-input-active .combatant-stage .timer-ring::before { width: 50px; }
+  .game-input-active .timer-core strong { font-size: 21px; }
+  .game-input-active .timer-core span { font-size: 10px; }
+  .game-input-active .turn-copy h1 .syllable-orb { width: 62px; font-size: 39px; }
+  .game-input-active .turn-copy > p { font-size: 13px; }
+  .game-input-short .combatant-stage { min-height: 112px; }
+  .game-input-short .mascot-frame { width: 44px; }
+  .game-input-short .combatant-stage .timer-ring { width: 48px; height: 48px; }
+  .game-input-short .combatant-stage .timer-ring::before { width: 42px; }
+  .game-input-short .timer-core strong { font-size: 18px; }
   .recovery-banner { top: max(12px, env(safe-area-inset-top)); }
   .practice-dialog { padding: 20px; max-height: 88dvh; }
   .practice-dialog h2 { font-size: 23px; }

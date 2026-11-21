@@ -8,7 +8,7 @@
   let restoredSession;
   try { restoredSession = JSON.parse(sessionStore.getItem('segulja-room-session')); } catch { /* old or invalid record */ }
   const lobby = $('#lobbyScreen');
-  ['.lobby-hero', '.join-strip', '.mode-section', '.crew-section', '.dictionary-strip', '.passport-section', '.rooms-section', '.promise-strip']
+  ['.lobby-hero', '.join-strip', '.mode-section', '.rooms-section', '.crew-section', '.dictionary-strip', '.passport-section', '.promise-strip']
     .map(selector => $(selector, lobby)).filter(Boolean).forEach(section => lobby.append(section));
   const els = {
     lobby: $('#lobbyScreen'), game: $('#gameScreen'), dialog: $('#setupDialog'), setupForm: $('#setupForm'),
@@ -50,7 +50,9 @@
   const savedMascot = Number(localStorage.getItem('segulja-mascot'));
 
   const app = {
-    socket: null, reconnectTimer: null, awaitingState: true, loadingLobby: false, entryPending: false, room: null,
+    socket: null, reconnectTimer: null, awaitingState: true, loadingLobby: false, entryPending: false, entryTimer: null, room: null,
+    lobbyMode: 'all', lobbyRequest: 0, lobbyController: null, lobbySignature: '', pendingInviteOnly: true,
+    dictionaryRequest: 0, dictionaryController: null,
     playerId: sessionStore.getItem('segulja-tab-player') || `guest-${crypto.randomUUID()}`, resumeToken: '',
     nickname: approvedNames.includes(localStorage.getItem('segulja-nickname')) ? localStorage.getItem('segulja-nickname') : '', desiredRoom: null, setupIntent: null, pendingCode: '',
     pendingMode: 'classic', pendingDifficulty: localStorage.getItem('segulja-difficulty') || 'beginner', reconnectAttempt: 0, serverOffset: 0, sound: localStorage.getItem('segulja-sound') !== 'off',
@@ -100,7 +102,11 @@
     },
     onMessage: payload => handleMessage(JSON.parse(payload)),
     onClose: () => {
-      app.awaitingState = true; setConnection(false, '재연결 중');
+      app.awaitingState = true; setConnection(false, app.desiredRoom ? '재연결 중' : '대기 중');
+      if (!app.desiredRoom && app.entryPending) {
+        setEntryPending(false);
+        toast('입장 중 연결이 끊겼어요. 다시 눌러 입장해 주세요');
+      }
       wordEntry.reset(); syncInputControls();
       if (app.desiredRoom && navigator.onLine) {
         const delay = Math.min(7000, 700 * 2 ** app.reconnectAttempt++);
@@ -173,7 +179,7 @@
       if (message.code === 'INVALID_NICKNAME') {
         app.nickname = '';
         localStorage.removeItem('segulja-nickname');
-        openSetup(app.setupIntent || 'quick', {mode: app.pendingMode, code: app.pendingCode});
+        openSetup(app.setupIntent || 'quick', {mode: app.pendingMode, code: app.pendingCode, inviteOnly: app.pendingInviteOnly});
         return;
       }
       if (['HANGUL_ONLY', 'WRONG_LENGTH', 'WRONG_START', 'DUPLICATE', 'NOT_IN_DICTIONARY'].includes(message.code)) {
@@ -217,6 +223,8 @@
     els.game.dataset.phase = room.phase;
     els.game.dataset.mode = room.mode.id;
     els.waitingStage.hidden = room.phase !== 'waiting';
+    $('#roomVisibility').textContent = room.inviteOnly ? '초대 전용 · 코드를 아는 사람만' : '공개 방 · 누구나 함께';
+    $('#roomVisibility').dataset.visibility = room.inviteOnly ? 'invite' : 'public';
     els.waitingSeatCount.textContent = `${room.players.length} / 8`;
     els.waitingCopyText.textContent = room.players.length > 1
       ? `${room.players.length}명의 크루가 탑승했어요. 모두 준비되면 방장이 출발 버튼을 눌러요.`
@@ -402,6 +410,15 @@
 
   function renderHistory(history) {
     els.historyCount.textContent = history.length;
+    const ribbon = $('#wordOrbit');
+    const recentWords = history.slice(-4);
+    ribbon.hidden = recentWords.length === 0;
+    $('#wordOrbitTrail').replaceChildren(...recentWords.map((play, index) => {
+      const item = document.createElement('span');
+      item.className = index === recentWords.length - 1 ? 'orbit-word latest' : 'orbit-word';
+      item.textContent = play.word;
+      return item;
+    }));
     if (!history.length) {
       els.history.innerHTML = '<li class="history-empty">첫 신호를 기다립니다</li>'; return;
     }
@@ -502,6 +519,24 @@
       return;
     }
     const {winner, ranking, myRank, myWords} = KungClient.summarizeResult(room, app.playerId);
+    const podium = $('#resultPodium');
+    podium.replaceChildren(...ranking.slice(0, 3).map((player, index) => {
+      const item = document.createElement('div');
+      item.className = `podium-place podium-place-${index + 1}`;
+      item.classList.toggle('mine', player.id === app.playerId);
+      item.classList.toggle('winner', player.id === winner?.id);
+      const avatar = document.createElement('span'); avatar.className = 'podium-avatar mascot-sprite';
+      applyMascot(avatar, player.mascot ?? mascotIndex(player.id));
+      const platform = document.createElement('div'); platform.className = 'podium-platform';
+      const position = document.createElement('small'); position.textContent = player.id === winner?.id ? '우승 · 1위' : `${index + 1}위`;
+      const name = document.createElement('strong'); name.textContent = player.nickname;
+      const score = document.createElement('b'); score.textContent = `${player.score.toLocaleString()}점`;
+      const pilot = document.createElement('span'); pilot.className = 'podium-pilot'; pilot.textContent = player.id === app.playerId ? '나의 크루' : player.bot ? '쿵봇' : '플레이어';
+      platform.append(position, name, score, pilot); item.append(avatar, platform);
+      return item;
+    }));
+    podium.hidden = ranking.length === 0;
+    els.result.classList.toggle('has-podium', ranking.length > 0);
     setMascotSprite(els.resultMascot, winner?.id || app.playerId);
     els.resultKicker.textContent = winner?.id === app.playerId ? 'YOU RULE THE ORBIT' : 'MISSION COMPLETE';
     $('#resultTitle').textContent = winner ? '궤도의 주인공!' : '이번 판은 무승부';
@@ -669,37 +704,74 @@
     requestAnimationFrame(updateTimer);
   }
 
-  async function loadLobby() {
-    if (app.loadingLobby) return;
+  async function loadLobby(force = false) {
+    if (app.loadingLobby && !force) return;
+    if (force) app.lobbyController?.abort();
     app.loadingLobby = true;
     const controller = new AbortController();
+    app.lobbyController = controller;
+    const request = ++app.lobbyRequest;
+    const mode = app.lobbyMode;
+    els.roomList.setAttribute('aria-busy', 'true');
+    $('#refreshRooms').disabled = true;
+    if (force) {
+      app.lobbySignature = '';
+      els.roomList.innerHTML = '<div class="empty-room"><span aria-hidden="true">◌</span><p>선택한 모드의 방을 찾고 있어요</p></div>';
+    }
     const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const response = await fetch('/api/lobby', {cache: 'no-store', signal: controller.signal});
+      const response = await fetch(`/api/lobby?mode=${encodeURIComponent(mode)}`, {cache: 'no-store', signal: controller.signal});
       if (!response.ok) throw new Error('lobby unavailable');
       const data = await response.json();
+      if (request !== app.lobbyRequest) return;
       $('#lobbyStatus').hidden = true;
       els.onlineCount.textContent = data.stats.connectedPlayers || 0;
+      const signature = JSON.stringify([mode, data.rooms]);
+      if (signature === app.lobbySignature) return;
+      app.lobbySignature = signature;
+      const focusedRoom = document.activeElement?.closest('[data-room]')?.dataset.room;
       if (!data.rooms.length) {
-        els.roomList.innerHTML = '<div class="empty-room"><span>◌</span><p>열린 게임이 없어요. 첫 번째 방을 만들어 보세요!</p></div>';
-        return;
-      }
-      els.roomList.replaceChildren(...data.rooms.map(room => {
+        const empty = document.createElement('div'); empty.className = 'empty-room';
+        const heading = document.createElement('strong'); heading.textContent = mode === 'all' ? '첫 번째 크루가 되어 주세요' : `${modeLabels[mode]} 방이 아직 없어요`;
+        const detail = document.createElement('p'); detail.textContent = '공개 방을 만들면 다른 크루가 찾아올 수 있어요. 혼자라면 쿵봇과 시작해도 좋아요.';
+        empty.append(heading, detail); els.roomList.replaceChildren(empty);
+      } else els.roomList.replaceChildren(...data.rooms.map(room => {
         const button = document.createElement('button'); button.className = 'room-card'; button.type = 'button'; button.dataset.room = room.code;
         const top = document.createElement('div'); const code = document.createElement('strong'); code.textContent = room.code;
-        const mode = document.createElement('b'); mode.textContent = room.modeLabel; top.append(code, mode);
-        const people = document.createElement('p'); people.textContent = `${room.players}명 대기 중${room.bots ? ` · 쿵봇 ${room.bots}` : ''} · 입장 가능`;
-        button.append(top, people); return button;
+        const badge = document.createElement('b'); badge.textContent = modeLabels[room.mode] || room.modeLabel; top.append(code, badge);
+        const people = document.createElement('p'); people.textContent = `사람 ${room.players}명 · 쿵봇 ${room.bots}명${room.bots ? ` (${room.difficultyLabel})` : ''}`;
+        const bottom = document.createElement('div'); bottom.className = 'room-card-bottom';
+        const seats = document.createElement('span'); seats.textContent = `${room.availableSeats}자리 남음`;
+        const enter = document.createElement('span'); enter.textContent = '입장하기 →'; bottom.append(seats, enter);
+        button.setAttribute('aria-label', `${room.code} ${badge.textContent}, ${people.textContent}, ${seats.textContent}, 입장하기`);
+        button.append(top, people, bottom); return button;
       }));
+      if (focusedRoom) ($$('[data-room]', els.roomList).find(button => button.dataset.room === focusedRoom) || $('#publicRoomButton')).focus({preventScroll: true});
     } catch {
+      if (request !== app.lobbyRequest) return;
+      app.lobbySignature = '';
+      const hadRoomFocus = Boolean(document.activeElement?.closest('[data-room]'));
+      els.roomList.replaceChildren();
+      if (hadRoomFocus) $('#publicRoomButton').focus({preventScroll: true});
       $('#lobbyStatus').hidden = false;
-      $('#lobbyStatus').textContent = '방 목록을 불러오지 못했어요. 새로고침하면 다시 확인할 수 있어요.';
-    } finally { clearTimeout(timeout); app.loadingLobby = false; }
+      $('#lobbyStatus').textContent = '방 목록을 불러오지 못했어요. 연결을 확인하고 새로고침해 주세요. 받은 코드로도 입장할 수 있어요.';
+    } finally {
+      clearTimeout(timeout);
+      if (request === app.lobbyRequest) {
+        app.loadingLobby = false; app.lobbyController = null;
+        els.roomList.setAttribute('aria-busy', 'false'); $('#refreshRooms').disabled = false;
+      }
+    }
   }
 
-  function openSetup(intent, {mode = 'classic', code = ''} = {}) {
+  function openSetup(intent, {mode = 'classic', code = '', inviteOnly = true} = {}) {
     if (els.dialog.open || app.entryPending) return;
     app.setupIntent = intent; app.pendingMode = mode; app.pendingCode = code;
+    app.pendingInviteOnly = inviteOnly;
+    $('#setupTitle').textContent = intent === 'create' ? '함께할 방을 준비해요' : intent === 'join' ? '친구가 기다리고 있어요' : '출격 준비를 해볼까요?';
+    $('#roomVisibilityPicker').hidden = intent !== 'create';
+    $(`input[name="visibility"][value="${inviteOnly ? 'invite' : 'public'}"]`).checked = true;
+    updateSetupContext();
     els.nickname.value = app.nickname || approvedNames[0];
     els.modePicker.hidden = intent === 'join';
     const radio = $(`input[name="mode"][value="${mode}"]`, els.modePicker); if (radio) radio.checked = true;
@@ -709,6 +781,12 @@
       if (difficulty) difficulty.checked = true;
     }
     els.dialog.showModal(); setTimeout(() => els.nickname.focus(), 50);
+  }
+
+  function updateSetupContext() {
+    $('#setupContext').textContent = app.setupIntent === 'create'
+      ? app.pendingInviteOnly ? '공개 목록과 빠른 매칭에 나타나지 않아요. 초대 링크나 코드를 받은 친구가 입장해요.' : '공개 목록과 빠른 매칭에서 다른 크루가 들어올 수 있어요.'
+      : app.setupIntent === 'join' ? `방 코드 ${app.pendingCode}에 입장해요.` : '같은 모드의 공개 방을 찾아요. 열린 방이 없으면 새 방에서 쿵봇과 시작할 수 있어요.';
   }
 
   function useIdentityThen(intent, options = {}) {
@@ -722,15 +800,21 @@
     setEntryPending(true);
     const mode = options.mode || app.pendingMode || 'classic';
     const identity = {nickname: app.nickname, playerId: app.playerId, mascot: app.mascot, difficulty: app.pendingDifficulty, protocolVersion: 2, resumeToken: app.resumeToken};
-    if (intent === 'create') send({type: 'create', mode, ...identity});
+    if (intent === 'create') send({type: 'create', mode, inviteOnly: options.inviteOnly ?? app.pendingInviteOnly, ...identity});
     else if (intent === 'quick') send({type: 'quickJoin', mode, ...identity});
     else if (intent === 'join') send({type: 'join', code: options.code || app.pendingCode, ...identity});
   }
 
   function setEntryPending(pending) {
+    clearTimeout(app.entryTimer); app.entryTimer = null;
     app.entryPending = pending;
-    ['#quickButton', '#createButton', '#setupSubmit', '#joinForm button', '#practiceButton'].forEach(selector => { const button = $(selector); if (button) button.disabled = pending; });
+    ['#quickButton', '#createButton', '#publicRoomButton', '#setupSubmit', '#joinForm button', '#practiceButton'].forEach(selector => { const button = $(selector); if (button) button.disabled = pending; });
     els.lobby.setAttribute('aria-busy', String(pending));
+    if (pending) app.entryTimer = setTimeout(() => {
+      if (app.desiredRoom) return;
+      setEntryPending(false); transport.close();
+      toast('입장 응답이 늦어지고 있어요. 연결을 확인한 뒤 다시 시도해 주세요');
+    }, 12000);
   }
 
   function setConnection(ok, label) {
@@ -912,6 +996,10 @@
 
   $('#quickButton').addEventListener('click', () => useIdentityThen('quick', {mode: 'classic'}));
   $('#createButton').addEventListener('click', () => openSetup('create'));
+  $('#publicRoomButton').addEventListener('click', () => openSetup('create', {mode: app.lobbyMode === 'all' ? 'classic' : app.lobbyMode, inviteOnly: false}));
+  $('#roomVisibilityPicker').addEventListener('change', () => {
+    app.pendingInviteOnly = $('input[name="visibility"]:checked').value === 'invite'; updateSetupContext();
+  });
   $$('[data-quick-mode]').forEach(button => button.addEventListener('click', () => useIdentityThen('quick', {mode: button.dataset.quickMode})));
   $('#joinForm').addEventListener('submit', event => {
     event.preventDefault(); const code = els.roomCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -920,9 +1008,17 @@
   });
   els.roomCodeInput.addEventListener('input', () => els.roomCodeInput.value = els.roomCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
   els.roomList.addEventListener('click', event => { const card = event.target.closest('[data-room]'); if (card) useIdentityThen('join', {code: card.dataset.room}); });
-  $('#refreshRooms').addEventListener('click', loadLobby);
+  $('#refreshRooms').addEventListener('click', () => loadLobby(true));
+  $$('[data-room-mode]').forEach(button => button.addEventListener('click', () => {
+    if (app.lobbyMode === button.dataset.roomMode) return;
+    app.lobbyMode = button.dataset.roomMode;
+    $$('[data-room-mode]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    loadLobby(true);
+  }));
   els.dictionaryForm.addEventListener('submit', async event => {
     event.preventDefault();
+    app.dictionaryController?.abort();
+    const request = ++app.dictionaryRequest;
     const word = els.dictionaryInput.value.trim();
     if (!word) {
       els.dictionaryResult.className = 'dictionary-result invalid';
@@ -931,10 +1027,13 @@
     }
     els.dictionaryResult.className = 'dictionary-result';
     els.dictionaryResult.textContent = '서버 사전을 조회하는 중…';
+    const controller = new AbortController(); app.dictionaryController = controller;
+    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const response = await fetch(`/api/word/check?word=${encodeURIComponent(word)}`, {cache: 'no-store'});
+      const response = await fetch(`/api/word/check?word=${encodeURIComponent(word)}`, {cache: 'no-store', signal: controller.signal});
       if (!response.ok) throw new Error('lookup failed');
       const result = await response.json();
+      if (request !== app.dictionaryRequest) return;
       if (result.known) {
         els.dictionaryResult.className = 'dictionary-result valid';
         els.dictionaryResult.textContent = `✓ ‘${result.word}’은 사용할 수 있는 ${result.length}글자 명사예요`;
@@ -943,11 +1042,13 @@
         els.dictionaryResult.textContent = `× ${result.word || word} · 등록된 명사가 아닙니다`;
       }
     } catch {
+      if (request !== app.dictionaryRequest) return;
       els.dictionaryResult.className = 'dictionary-result invalid';
-      els.dictionaryResult.textContent = '사전 서버에 연결하지 못했어요';
-    }
+      els.dictionaryResult.textContent = '사전 서버에 연결하지 못했어요. 단어 확인을 다시 눌러 주세요';
+    } finally { clearTimeout(timeout); if (request === app.dictionaryRequest) app.dictionaryController = null; }
   });
   els.dictionaryInput.addEventListener('input', () => {
+    app.dictionaryRequest++; app.dictionaryController?.abort(); app.dictionaryController = null;
     els.dictionaryResult.className = 'dictionary-result';
     els.dictionaryResult.textContent = '검증할 단어를 입력하세요';
   });

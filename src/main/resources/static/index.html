@@ -21,7 +21,8 @@
   <link rel="stylesheet" href="/orbit-redesign.css?v=20261012-04">
   <link rel="stylesheet" href="/stitch-ui.css?v=20261013-04">
   <link rel="stylesheet" href="/mobile-ui.css?v=20261013-02">
-  <link rel="stylesheet" href="/release-ui.css?v=20261015-02">
+  <link rel="stylesheet" href="/release-ui.css?v=20261121-04">
+  <link rel="stylesheet" href="/match-upgrade.css?v=20261121-01">
   <title>세글자쿵 — KUNG ORBIT</title>
 </head>
 <body>
@@ -178,7 +179,17 @@
       </section>
 
       <section class="rooms-section" aria-labelledby="roomsTitle">
-        <div class="section-heading"><div><span class="section-kicker">지금 열려 있는 게임</span><h2 id="roomsTitle">바로 입장</h2></div><button class="text-button" id="refreshRooms" type="button">새로고침 ↻</button></div>
+        <div class="section-heading"><div><span class="section-kicker">함께 출격할 크루를 찾아요</span><h2 id="roomsTitle">지금 열려 있는 방</h2></div><button class="text-button" id="refreshRooms" type="button">새로고침 ↻</button></div>
+        <div class="room-discovery">
+          <div class="room-filters" role="group" aria-label="공개 방 모드 선택">
+            <button type="button" data-room-mode="all" aria-pressed="true">전체</button>
+            <button type="button" data-room-mode="classic" aria-pressed="false">클래식</button>
+            <button type="button" data-room-mode="speed" aria-pressed="false">번개</button>
+            <button type="button" data-room-mode="relay" aria-pressed="false">릴레이</button>
+          </div>
+          <button type="button" class="help-button" id="publicRoomButton">+ 공개 방 만들기</button>
+        </div>
+        <p class="room-discovery-note">대기 중인 공개 방만 보여요. 친구가 보낸 코드는 위에서 바로 입력하세요.</p>
         <p id="lobbyStatus" class="room-list-status" role="status" hidden></p>
         <div id="roomList" class="room-list"><div class="empty-room"><span>◌</span><p>입장할 수 있는 게임을 찾는 중이에요</p></div></div>
       </section>
@@ -207,6 +218,7 @@
           <section id="waitingStage" class="waiting-stage" aria-labelledby="waitingTitle" hidden>
             <div class="waiting-orbit" aria-hidden="true"><span id="waitingMascot" class="mascot-sprite"></span><i></i></div>
             <span class="waiting-kicker">ORBIT STATION · READY CHECK</span>
+            <span id="roomVisibility" class="room-visibility">공개 방 · 누구나 함께</span>
             <h2 id="waitingTitle">크루를 기다리고 있어요</h2>
             <p id="waitingCopyText">친구에게 방 코드를 보내거나 쿵봇을 불러 바로 출발할 수 있어요.</p>
             <button id="waitingShareButton" class="waiting-invite" type="button" aria-label="방 코드와 초대 링크 공유">
@@ -251,6 +263,7 @@
             <span class="fever-track"><i id="feverGaugeFill"></i></span>
           </div>
           <div class="input-dock">
+          <div id="wordOrbit" class="word-orbit" aria-hidden="true" hidden><span class="word-orbit-label">단어 궤도</span><div id="wordOrbitTrail" class="word-orbit-trail"></div></div>
           <div class="input-prompt"><span class="input-prompt-live" aria-hidden="true"></span><span id="entryPrompt">내 차례에 이어질 단어를 입력하세요</span><kbd aria-hidden="true">ENTER</kbd></div>
           <div class="word-entry">
             <form id="wordForm" class="word-form" autocomplete="off">
@@ -276,6 +289,7 @@
             <h2 id="resultTitle">궤도의 주인공!</h2>
             <strong id="resultWinner">승자</strong>
             <p id="resultSummary">멋진 승부였습니다</p>
+            <div id="resultPodium" class="result-podium" aria-hidden="true" hidden></div>
             <div class="result-stats" aria-label="이번 경기 기록">
               <div><strong id="resultRank">-</strong><span>내 순위</span></div>
               <div><strong id="resultWords">0</strong><span>내 유효 단어</span></div>
@@ -319,13 +333,18 @@
 
   <footer><span>세글자쿵! · KUNG ORBIT</span><span>무료 · 광고 없음 · 후원 기능 없음</span></footer>
 
-  <dialog id="setupDialog" class="setup-dialog">
+  <dialog id="setupDialog" class="setup-dialog" aria-labelledby="setupTitle">
     <form method="dialog" id="setupForm">
       <button class="dialog-close" value="cancel" aria-label="닫기">×</button>
-      <span class="dialog-kicker">게임 준비</span><h2>이름을 선택해 주세요</h2>
+      <span class="dialog-kicker">게임 준비</span><h2 id="setupTitle">이름을 선택해 주세요</h2>
       <div class="setup-crew"><span id="setupMascot" class="mascot-sprite" aria-hidden="true"></span><span id="setupCrewName">루미와 함께 출격!</span></div>
       <label for="nicknameInput">검수된 별명</label><select id="nicknameInput" aria-describedby="nicknameHelp"></select>
       <p id="nicknameHelp" class="nickname-help">모두에게 보이는 이름 · 준비된 24개 중 선택</p>
+      <fieldset id="roomVisibilityPicker" class="visibility-choices" hidden><legend>누구와 함께할까요?</legend>
+        <label><input type="radio" name="visibility" value="invite" checked><span><b>친구 초대</b><small>코드를 아는 사람만 입장</small></span></label>
+        <label><input type="radio" name="visibility" value="public"><span><b>누구나 함께</b><small>공개 목록·빠른 매칭에 표시</small></span></label>
+      </fieldset>
+      <p id="setupContext" class="setup-context"></p>
       <fieldset id="modePicker"><legend>게임 모드</legend>
         <label><input type="radio" name="mode" value="classic" checked><span><b>정통</b><small>3글자 · 12초</small></span></label>
         <label><input type="radio" name="mode" value="speed"><span><b>번개</b><small>3글자 · 7초</small></span></label>
@@ -382,6 +401,6 @@
   <script src="/practice.js?v=20261014-01" defer></script>
   <script src="/progression.js?v=20261014-02" defer></script>
   <script src="/play-quality.js?v=20261015-01" defer></script>
-  <script src="/app.js?v=20261015-02" defer></script>
+  <script src="/app.js?v=20261121-02" defer></script>
 </body>
 </html>

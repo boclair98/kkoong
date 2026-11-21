@@ -26,9 +26,9 @@ public class GameController {
 
     @GetMapping("/lobby")
     @CrossOrigin(origins = "*") // Read-only public room summaries for the separate Apps in Toss WebView.
-    public ResponseEntity<Map<String, Object>> lobby() {
+    public ResponseEntity<Map<String, Object>> lobby(@RequestParam(defaultValue = "all") String mode) {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(2, TimeUnit.SECONDS).cachePublic())
-                .body(Map.of("rooms", rooms.lobbyRooms(), "stats", rooms.publicStats(), "serverTime", System.currentTimeMillis()));
+                .body(Map.of("rooms", rooms.lobbyRooms(mode), "stats", rooms.publicStats(), "serverTime", System.currentTimeMillis()));
     }
 
     @GetMapping("/ready")

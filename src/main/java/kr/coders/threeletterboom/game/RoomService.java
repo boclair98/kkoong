@@ -82,17 +82,17 @@ public class RoomService {
     }
 
     public List<Map<String, Object>> lobbyRooms() {
-        return rooms.values().stream().filter(room -> {
-                    synchronized (room) {
-                        return !room.duelQueue && room.phase == GameRoom.Phase.WAITING
-                                && room.players.size() < MAX_PLAYERS
-                                && room.players.values().stream().anyMatch(player -> !player.bot && player.connected);
-                    }
-                })
+        return lobbyRooms("");
+    }
+
+    public List<Map<String, Object>> lobbyRooms(String modeFilter) {
+        String filter = modeFilter == null ? "" : modeFilter.trim().toLowerCase(Locale.ROOT);
+        return rooms.values().stream()
+                .filter(room -> filter.isEmpty() || filter.equals("all") || room.mode.id().equals(filter))
                 .sorted(Comparator.comparing(room -> room.createdAt))
-                .limit(12)
                 .map(room -> {
                     synchronized (room) {
+                        if (!isPublicWaitingRoom(room)) return null;
                         Map<String, Object> item = new LinkedHashMap<>();
                         item.put("code", room.code);
                         item.put("mode", room.mode.id());
@@ -100,9 +100,21 @@ public class RoomService {
                         item.put("players", (int) room.players.values().stream().filter(player -> !player.bot).count());
                         item.put("bots", (int) room.players.values().stream().filter(player -> player.bot).count());
                         item.put("maxPlayers", MAX_PLAYERS);
+                        item.put("occupiedSeats", room.players.size());
+                        item.put("availableSeats", MAX_PLAYERS - room.players.size());
+                        item.put("connectedPlayers", (int) room.players.values().stream().filter(player -> !player.bot && player.connected).count());
+                        item.put("difficulty", room.difficulty.id());
+                        item.put("difficultyLabel", room.difficulty.label());
                         return item;
                     }
-                }).toList();
+                }).filter(java.util.Objects::nonNull).limit(12).toList();
+    }
+
+    // Caller holds the room lock so visibility, phase and occupied seats form one snapshot.
+    private boolean isPublicWaitingRoom(GameRoom room) {
+        return !room.duelQueue && !room.inviteOnly && room.phase == GameRoom.Phase.WAITING
+                && room.players.size() < MAX_PLAYERS
+                && room.players.values().stream().anyMatch(player -> !player.bot && player.connected);
     }
 
     public Map<String, Object> publicStats() {
@@ -121,7 +133,8 @@ public class RoomService {
         cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
         String code = newCode();
-        GameRoom room = new GameRoom(code, mode, GameDifficulty.from(text(message, "difficulty")));
+        GameRoom room = new GameRoom(code, mode, GameDifficulty.from(text(message, "difficulty")),
+                false, message.path("inviteOnly").asBoolean(false));
         registerRoom(room);
         joinRoom(session, message, room);
     }
@@ -137,19 +150,25 @@ public class RoomService {
         requireUnassigned(session);
         cleanNickname(text(message, "nickname"));
         GameMode mode = GameMode.from(text(message, "mode"));
-        GameRoom room = rooms.values().stream()
-                .filter(candidate -> {
-                    synchronized (candidate) {
-                        return !candidate.duelQueue && candidate.mode == mode && candidate.phase == GameRoom.Phase.WAITING
-                                && candidate.players.size() < MAX_PLAYERS;
-                    }
-                })
-                .findFirst().orElseGet(() -> {
-                    GameRoom created = new GameRoom(newCode(), mode, GameDifficulty.from(text(message, "difficulty")));
-                    registerRoom(created);
-                    return created;
-                });
-        joinRoom(session, message, room);
+        for (int attempt = 0; attempt < 4; attempt++) {
+            GameRoom candidate = rooms.values().stream().filter(room -> {
+                synchronized (room) { return room.mode == mode && isPublicWaitingRoom(room); }
+            }).min(Comparator.comparing(room -> room.createdAt)).orElse(null);
+            if (candidate == null) break;
+            synchronized (candidate) {
+                // A host may start/leave or another player may take the last seat after selection.
+                if (rooms.get(candidate.code) != candidate || !isPublicWaitingRoom(candidate)) continue;
+                try {
+                    joinRoom(session, message, candidate);
+                    return;
+                } catch (GameProblem problem) {
+                    if (!Set.of("ROOM_FULL", "GAME_STARTED", "GAME_FINISHED").contains(problem.code)) throw problem;
+                }
+            }
+        }
+        GameRoom created = new GameRoom(newCode(), mode, GameDifficulty.from(text(message, "difficulty")));
+        registerRoom(created);
+        joinRoom(session, message, created);
     }
 
     private void duelQueue(WebSocketSession session, JsonNode message) {
@@ -655,6 +674,7 @@ public class RoomService {
         result.put("serverTime", System.currentTimeMillis());
         result.put("roomCode", room.code);
         result.put("matchType", room.duelQueue ? "duel" : "room");
+        result.put("inviteOnly", room.inviteOnly);
         result.put("maxPlayers", room.duelQueue ? 2 : MAX_PLAYERS);
         result.put("phase", room.phase.name().toLowerCase(Locale.ROOT));
         result.put("hostId", room.hostId);

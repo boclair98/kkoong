@@ -1,0 +1,60 @@
+/* Stitch's word orbit and crew podium, driven only by the server's real match. */
+.word-orbit { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 14px; min-width: 0; }
+.word-orbit-label { color: #a8b4c8; font-size: 12px; line-height: 1.5; }
+.word-orbit-trail { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; min-width: 0; }
+.orbit-word { display: inline-flex; align-items: center; gap: 7px; color: #9daec6; font-size: 14px; line-height: 1.5; white-space: nowrap; }
+.orbit-word:not(:last-child)::after { content: '›'; color: #526c8b; font-size: 19px; line-height: 1; }
+.orbit-word.latest { padding: 4px 9px; border: 1px solid #73ded84d; border-radius: 8px; color: #adfff1; background: #153239; font-weight: 750; }
+.word-orbit[hidden], .result-podium[hidden], .game-input-active .word-orbit { display: none; }
+
+.result-overlay.has-podium { display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: center; }
+.result-overlay.has-podium > .result-mascot { display: none; }
+.result-overlay.has-podium > .result-kicker { margin: 8px 0 0; font-size: 11px; }
+.result-overlay.has-podium > h2 { margin: 0; font-size: 17px; line-height: 1.5; }
+.result-overlay.has-podium > strong { margin: 0; font-size: clamp(25px, 3vw, 38px); line-height: 1.35; word-break: keep-all; overflow-wrap: anywhere; }
+.result-overlay.has-podium > p { margin: 0; font-size: 13px; line-height: 1.6; }
+.result-podium { position: relative; z-index: 2; display: flex; align-items: flex-end; justify-content: center; gap: 8px; width: min(100%, 560px); margin: 8px auto 14px; isolation: isolate; }
+.podium-place { position: relative; display: flex; flex: 1 1 0; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; max-width: 180px; }
+.podium-place-1 { order: 2; }
+.podium-place-2 { order: 1; }
+.podium-place-3 { order: 3; }
+.podium-avatar { position: relative; z-index: 1; display: block; width: min(100%, 100px); aspect-ratio: 1; margin-bottom: -6px; filter: drop-shadow(0 6px 9px #03081580); }
+.podium-place-1 .podium-avatar { width: min(100%, 118px); }
+.podium-platform { display: grid; align-content: start; justify-items: center; gap: 5px; width: 100%; min-height: 125px; padding: 14px 7px 12px; border: 1px solid #839bb43d; border-radius: 12px 12px 4px 4px; background: linear-gradient(180deg, #21364b, #142336); box-shadow: inset 0 3px #8ac4de24; }
+.podium-place-1 .podium-platform { min-height: 153px; }
+.podium-place-3 .podium-platform { min-height: 113px; }
+.podium-platform small { color: #b1d3ee; font: 750 12px/1.4 var(--font-ui); }
+.podium-platform strong { max-width: 100%; color: #ecf5ff; font-size: 14px; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+.podium-platform b { color: #ccf5f0; font: 750 15px/1.5 var(--font-mono); overflow-wrap: anywhere; }
+.podium-pilot { color: #a2b7cf; font-size: 11px; line-height: 1.5; }
+.podium-place.winner .podium-platform { border-color: #ffcf7a70; background: linear-gradient(180deg, #4c3b2e, #282936); box-shadow: inset 0 3px #ffcf7a60; }
+.podium-place.winner .podium-platform small { color: #ffda94; }
+.podium-place.mine .podium-pilot { color: #9bf0dd; font-weight: 750; }
+.result-overlay.has-podium .result-stats { width: 100%; margin: 0 0 8px; }
+.result-overlay.has-podium .result-stats strong { font-size: 19px; }
+.result-overlay.has-podium .result-stats span { font-size: 12px; line-height: 1.5; }
+.result-overlay.has-podium .result-scoreboard { align-self: stretch; width: 100%; text-align: left; }
+.result-overlay.has-podium .result-scoreboard > div { flex-wrap: wrap; }
+.result-overlay.has-podium .result-scoreboard > div > span { font-size: 12px; }
+.result-overlay.has-podium .result-scoreboard ol { max-height: none; overflow: visible; }
+.result-overlay.has-podium .result-actions { margin-top: 4px; }
+
+@media (max-width: 760px) {
+  .word-orbit { gap: 5px; margin-bottom: 9px; }
+  .word-orbit-label { flex-basis: 100%; text-align: center; }
+  .word-orbit-trail { gap: 5px; }
+  .orbit-word { gap: 5px; font-size: 13px; }
+  .orbit-word.latest { padding: 3px 6px; }
+  .result-overlay.has-podium { gap: 7px; padding: 16px 12px; }
+  .result-podium { gap: 6px; margin-top: 4px; }
+  .podium-platform { padding: 12px 5px 10px; gap: 4px; }
+  .podium-platform strong { font-size: 12px; }
+  .podium-platform b { font-size: 13px; }
+  .podium-avatar { max-width: 83px; }
+  .podium-place-1 .podium-avatar { max-width: 98px; }
+  .result-overlay.has-podium .result-scoreboard { padding: 12px 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-podium .mascot-sprite { animation: none; }
+}
